@@ -18,11 +18,38 @@
     termination of a subprocess with this library. Perhaps there will
     be one day, when I need it. Otherwise, use the [pid] and refer to
     the [Unix] module for closing processes.
-
-    @author Aaron Christianson
+    
+    examples:
+    {[
+      (* Command to clone this repo *)
+      let clone_me = [|"git"; "clone"; "https://github.com/ninjaaron/ocaml-subprocess/"|];;
+      
+      (* just run the command. any output will go to stdout and stderr *)
+      run clone_me;;
+      
+      (* silence messages *)
+      run ~stderr:`Devnull clone_me;;
+      
+      (* get an Error type if process exist non-zero *)
+      match run_check clone_me with
+      | Error msg -> failwith msg
+      | Ok proc -> proc
+      ;;
+      
+      (* direct stdout to file called "log" *)
+      let logfile = open_out "log" in
+      run ~stdout:(`Out_channel logfile) clone_me;;
+      
+      (* get output lines as a list *)
+      let proc = run ~stdout:`Pipe [|"cat"; "lib/subprocess.ml"|] in
+      proc.stdout;;
+      
+      (* fold over output lines *)
+      let proc, total_chars =
+        fold ~stdout:`Pipe ~init:0 [|"cat"; "lib/subprocess.ml"|]
+          ~f:(fun total line -> total + String.length line);;
+    ]}
 *)
-
-module Unix = UnixLabels
 
 (** This library prefers result types in general.
     This exception is only raised when there is a programming error of
