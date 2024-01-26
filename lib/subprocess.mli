@@ -63,13 +63,23 @@ exception Subprocess_error of string
  *)
 type t =
   { pid : int
+  ; args : string array
   ; stdin : out_channel option
   ; stdout : in_channel option
   ; stderr : in_channel option
   }
 
 (** the type of a process which has been closed *)
-type completed = { pid : int; status : Unix.process_status }
+module Exit : sig 
+  type t =
+    { pid : int
+    ; args : string array
+    ; status : Unix.process_status
+    }
+
+  val to_string : t -> string
+  val check : t -> (t, t) result
+end
 
 (** check if process [t] has finished executing. If not, return [None] *)
 val poll : t -> Unix.process_status option
@@ -77,10 +87,10 @@ val poll : t -> Unix.process_status option
 (** wait for process to complete, close any file handles and return
     completed process instance.
 *)
-val close : t -> completed
+val close : t -> Exit.t
 
 (** return and [Error of string] if status code is not zero. *)
-val check : completed -> (completed, string) Result.t
+val check : t -> (Exit.t, Exit.t) Result.t
 
 (** Type for the stdin argument of process-creating functions in
     this library.
@@ -89,8 +99,7 @@ val check : completed -> (completed, string) Result.t
     the created process.
 *)
 type input_t =
-  [ `Fd of Unix.file_descr
-  | `In_channel of in_channel
+  [ `In_channel of in_channel
   | `Pipe
   ]
 
@@ -103,8 +112,7 @@ type input_t =
     Using [`Devnull] will cause output to be ignored.
 *)
 type output_t =
-  [ `Fd of Unix.file_descr
-  | `Out_channel of out_channel
+  [ `Out_channel of out_channel
   | `Pipe
   | `Devnull
   ]
@@ -124,9 +132,9 @@ type output_t =
     be correctly shut down.
 *)
 val create
-  :  ?stdin:[< input_t > `Fd ]
-  -> ?stdout:[< output_t > `Fd ]
-  -> ?stderr:[< output_t > `Fd ]
+  :  ?stdin:input_t
+  -> ?stdout:output_t
+  -> ?stderr: output_t
   -> string array
   -> t
 
@@ -140,7 +148,7 @@ val create
 module Context : sig
 
   (** Apply a context manager to an existing process. *)
-  val from : t -> f:(t -> 'a) -> completed * 'a
+  val from : t -> f:(t -> 'a) -> Exit.t * 'a
 
   (** create process to interact with in the context of [f] which
       which is automatically closed after.
@@ -148,13 +156,21 @@ module Context : sig
       See the outer [create] function for more details on specific
       arguments.
   *)
+  val unchecked
+    :  ?stdin:input_t
+    -> ?stdout:output_t
+    -> ?stderr:output_t
+    -> string array
+    -> f:(t -> 'a)
+    -> Exit.t * 'a
+
   val create
-  :  ?stdin:[< input_t > `Fd ]
-  -> ?stdout:[< output_t > `Fd ]
-  -> ?stderr:[< output_t > `Fd ]
-  -> string array
-  -> f:(t -> 'a)
-  -> completed * 'a
+    :  ?stdin:input_t
+    -> ?stdout:output_t
+    -> ?stderr:output_t
+    -> string array
+    -> f:(t -> 'a)
+    -> ('a, Exit.t) result
 end
 
 (** write a string to the stdin of the process. 
@@ -177,55 +193,58 @@ val lines : t -> string Seq.t
 (** Read lines from stderr as a [Seq.t] *)
 val stderr_lines : t -> string Seq.t
 
-(** Similar to {!type:input_t}, but without [`Pipe], since {!val:run}
-    is not interactive. Use {!val:write} instead for a non-interactive
-    way to send a string to the stdin of a process.
-*)
-type run_in =
-  [ `Fd of Unix.file_descr
-  | `In_channel of in_channel
-  ]
-
 (** Output type of {!val:run}, {!val:run_check} and {!val:write}.
     [proc] is the completed process. stdout and stderr are lists of
     strings correspoding to the output of those streams from the
     process. They will be empty unless the corresponding stream was
     set to [`Pipe].
 *)
-type run_t =
-  { proc: completed
-  ; stdout: string list
-  ; stderr: string list
-  }
+module Run : sig
+  type t =
+    { proc: Exit.t
+    ; stdout: string list
+    ; stderr: string list
+    }
 
-(** Creates a process, waits for it to finish and returns the 
-    completed process and any collected output See {!type:run_t} for
-    more details.
-*)
-val run
-  :  ?stdin:[< run_in > `Fd ]
-  -> ?stdout:[< output_t > `Fd ]
-  -> ?stderr:[< output_t > `Fd ]
-  -> string array
-  -> run_t
+  (** Creates a process, waits for it to finish and returns the 
+      completed process and any collected output See {!type:run_t} for
+      more details.
+  *)
+  val unchecked
+    :  ?stdin:in_channel
+    -> ?stdout:output_t
+    -> ?stderr:output_t
+    -> string array
+    -> t
+
+  (** Execute a command with {!val:run} and then check the status
+      code. Returns [Error of string] if non-zero.
+  *) 
+  val run
+    :  ?stdin:in_channel
+    -> ?stdout:output_t
+    -> ?stderr:output_t
+    -> string array
+    -> (t, Exit.t) Result.t
+
+  (** Similar to {!val:run}, but writes the [input] string to stdin. *)
+  val filter
+    :  ?stdout:output_t
+    -> ?stderr:output_t
+    -> string array
+    -> input: string
+    -> t
+end
 
 (** Execute a command with {!val:run} and then check the status
     code. Returns [Error of string] if non-zero.
 *) 
-val run_check
-  :  ?stdin:[< run_in > `Fd ]
-  -> ?stdout:[< output_t > `Fd ]
-  -> ?stderr:[< output_t > `Fd ]
+val run
+  :  ?stdin:in_channel
+  -> ?stdout:output_t
+  -> ?stderr:output_t
   -> string array
-  -> (run_t, string) Result.t
-    
-(** Similar to {!val:run}, but writes the [input] string to stdin. *)
-val write
-  :  ?stdout:[< output_t > `Fd ]
-  -> ?stderr:[< output_t > `Fd ]
-  -> string array
-  -> input: string
-  -> run_t
+  -> (Run.t, Exit.t) Result.t
 
 (** Create a process with either stdout or stderr set to [`Pipe], and
     fold over the lines of output.
@@ -236,10 +255,9 @@ val write
     set to [`Pipe]. Exactly one of these streams may be used.
 *)
 val fold
-  : ?stdin:[< run_in > `Fd ]
-  -> ?stdout:[< output_t > `Fd `Pipe ]
-  -> ?stderr:[< output_t > `Fd `Pipe ]
+  : ?stdin:in_channel
+  -> ?stderr:bool
   -> string array
   -> f:('a -> string -> 'a)
   -> init:'a
-  -> completed * 'a
+  -> Exit.t * 'a
