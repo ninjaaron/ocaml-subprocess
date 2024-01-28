@@ -1,4 +1,5 @@
 (library
  (public_name subprocess)
  (name subprocess)
- (libraries unix base))
+ (libraries unix core stdio)
+ (preprocess (pps ppx_jane)))

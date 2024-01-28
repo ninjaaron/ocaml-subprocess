@@ -1,6 +1,8 @@
 module Unix = UnixLabels
-
 module Exit = Exit
+
+open Base
+open Stdio
 
 exception Subprocess_error of string
 
@@ -13,9 +15,9 @@ let _create ~stdout ~stdin ~stderr args =
 type t =
   { pid : int
   ; args : string array
-  ; stdin : out_channel option
-  ; stdout : in_channel option
-  ; stderr : in_channel option
+  ; stdin : Out_channel.t option
+  ; stdout : In_channel.t option
+  ; stderr : In_channel.t option
   }
 
 let wait ?(mode = []) t = Unix.waitpid ~mode t.pid
@@ -27,21 +29,21 @@ let poll t =
 ;;
 
 let close t =
-  Option.iter close_out t.stdin;
+  Option.iter ~f:Out_channel.close t.stdin;
   let pid, status = wait t in
-  List.iter (Option.iter close_in) [t.stdout; t.stderr];
+  List.iter ~f:(Option.iter ~f:In_channel.close) [t.stdout; t.stderr];
   Exit.{pid; status; args = t.args}
 
 let check t =
   Exit.check (close t)
 
 type input_t =
-  [ `In_channel of in_channel
+  [ `In_channel of In_channel.t
   | `Pipe
   ]
 
 type output_t =
-  [ `Out_channel of out_channel
+  [ `Out_channel of Out_channel.t
   | `Pipe
   | `Devnull
   ]
@@ -57,7 +59,7 @@ let create ?stdin ?stdout ?stderr args =
           ; stdout = out.handle
           ; stderr = err.handle
           } in
-  List.iter (Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
+  List.iter ~f:(Option.iter ~f:Unix.close) [ in'.cl; out.cl; err.cl ];
   t
 ;;
 
@@ -79,25 +81,24 @@ module Context = struct
 
   let create ?stdin ?stdout ?stderr args ~f =
     let proc, out = unchecked ?stdin ?stdout ?stderr args ~f in
-    Result.map (fun _ -> out) (Exit.check proc)
-    
+    Result.map ~f:(fun _ -> out) (Exit.check proc)
 end
 
 let write_stdin t string =
-  output_string (Option.get t.stdin) string
+  Out_channel.output_string (Option.value_exn t.stdin) string
 ;;
 
 let opt_line icopt =
-  try Option.map input_line icopt with
-  | End_of_file -> None
-;;
+  Option.bind ~f:In_channel.input_line icopt
 
 let rec seq_of_ic ic () =
-  try Seq.Cons (input_line ic, seq_of_ic ic) with
-  | End_of_file -> Seq.Nil
+  match In_channel.input_line ic with
+  | Some line -> Stdlib.Seq.Cons (line, seq_of_ic ic)
+  | None -> Stdlib.Seq.Nil
 ;;
 
-let opt_lines icopt = Option.fold ~none:Seq.empty ~some:seq_of_ic icopt
+let opt_lines icopt =
+  Stdlib.Option.fold ~none:Stdlib.Seq.empty ~some:seq_of_ic icopt
 let line t = opt_line t.stdout
 let stderr_line t = opt_line t.stderr
 let lines t = opt_lines t.stdout
@@ -114,31 +115,33 @@ module Run = struct
 
   let unchecked ?(stdin=Stdlib.stdin) ?stdout ?stderr args =
     Context.unchecked ~stdin:(`In_channel stdin) ?stdout ?stderr args
-      ~f:(fun t -> List.of_seq (lines t),
-                   List.of_seq (stderr_lines t))
+      ~f:(fun t -> Stdlib.List.of_seq (lines t),
+                   Stdlib.List.of_seq (stderr_lines t))
     |> unwrap 
 
   let run ?stdin ?stdout ?stderr args =
     let t = unchecked ?stdin ?stdout ?stderr args in
-    Result.map (fun _ -> t) (Exit.check t.proc)
+    Result.map ~f:(fun _ -> t) (Exit.check t.proc)
 
   let filter ?stdout ?stderr args ~input =
     Context.unchecked ~stdin:`Pipe ?stdout ?stderr args
       ~f:(fun t ->
           write_stdin t input;
-          Option.get t.stdin |> close_out;
-          List.of_seq (lines t), List.of_seq (stderr_lines t))
+          Option.value_exn t.stdin |> Out_channel.close;
+          Stdlib.(List.of_seq (lines t), List.of_seq (stderr_lines t)))
     |> unwrap
 end
 
 let run = Run.run
 
-
-;;
-
 let fold ?(stdin=Stdlib.stdin) ?(stderr=false) args ~f ~init =
    let partial, reader = if stderr
       then Context.unchecked ~stdin:(`In_channel stdin) ~stderr:`Pipe args, stderr_lines
       else Context.unchecked ~stdin:(`In_channel stdin) ~stdout:`Pipe args, lines in
-    partial ~f:(fun proc -> Seq.fold_left f init (reader proc))
+    partial ~f:(fun proc -> Stdlib.Seq.fold_left f init (reader proc))
 ;;
+
+let or_error res = Result.map_error res
+    ~f:(fun err -> Error.create "bad status" err Exit.sexp_of_t)
+let string_error res = Result.map_error res
+    ~f:Exit.to_string
