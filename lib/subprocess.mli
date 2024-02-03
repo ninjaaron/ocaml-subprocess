@@ -76,10 +76,9 @@ module Exit : sig
     ; args : string array
     ; status : Unix.process_status
     }
-  type 'a result = ('a, t) Result.t
 
   val to_string : t -> string
-  val check : t -> t result
+  val check : t -> (t, t) result
   val sexp_of_t : t -> Base.Sexp.t
   val t_of_sexp : Base.Sexp.t -> t
 end
@@ -93,7 +92,7 @@ val poll : t -> Unix.process_status option
 val close : t -> Exit.t
 
 (** return and [Error of string] if status code is not zero. *)
-val check : t -> Exit.t Exit.result
+val check : t -> (Exit.t, Exit.t) result
 
 (** Type for the stdin argument of process-creating functions in
     this library.
@@ -173,8 +172,10 @@ module Context : sig
     -> ?stderr:output_t
     -> string array
     -> f:(t -> 'a)
-    -> 'a Exit.result
+    -> ('a, Exit.t) result
 end
+
+val ( let* ) : t -> (t -> ('a, Exit.t) result) -> ('a, Exit.t) result
 
 (** write a string to the stdin of the process. 
     raise [Stdlib.Invalid_argument] if stdin was not opened with [`Pipe]
@@ -228,7 +229,7 @@ module Run : sig
     -> ?stdout:output_t
     -> ?stderr:output_t
     -> string array
-    -> t Exit.result
+    -> (t, Exit.t) result
 
   (** Similar to {!val:run}, but writes the [input] string to stdin. *)
   val filter
@@ -247,7 +248,7 @@ val run
   -> ?stdout:output_t
   -> ?stderr:output_t
   -> string array
-  -> Run.t Exit.result
+  -> (Run.t, Exit.t) result
 
 (** Create a process with either stdout or stderr set to [`Pipe], and
     fold over the lines of output.
@@ -265,5 +266,5 @@ val fold
   -> init:'a
   -> Exit.t * 'a
 
-val or_error :  'a Exit.result -> 'a Base.Or_error.t
-val string_error : 'a Exit.result -> ('a, string) Result.t
+val or_error :  ('a, Exit.t) result -> 'a Base.Or_error.t
+val string_error : ('a, Exit.t) result -> ('a, string) Result.t

@@ -61,7 +61,6 @@ let create ?stdin ?stdout ?stderr args =
           } in
   List.iter ~f:(Option.iter ~f:Unix.close) [ in'.cl; out.cl; err.cl ];
   t
-;;
 
 module Context = struct
   let from t ~f =
@@ -83,6 +82,10 @@ module Context = struct
     let proc, out = unchecked ?stdin ?stdout ?stderr args ~f in
     Result.map ~f:(fun _ -> out) (Exit.check proc)
 end
+
+let (let*) t f =
+  let proc, output = Context.from t ~f in
+  Result.bind ~f:(fun _ -> output) (Exit.check proc)
 
 let write_stdin t string =
   Out_channel.output_string (Option.value_exn t.stdin) string
