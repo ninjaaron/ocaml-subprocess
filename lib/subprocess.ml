@@ -3,7 +3,7 @@ module Run = Run
 
 let run = Run.exn
 let read = Run.Read.exn
-let lines = Run.Lines.exn
+let readlines = Run.Lines.exn
 
 include Sub2
 
