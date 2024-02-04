@@ -75,7 +75,7 @@ let err_lines t = In_channel.input_lines t.stderr
 let write t s = Out_channel.output_string t.stdin s
 
 let or_error res = Result.map_error res
-    ~f:(fun err -> Error.create "bad status" err Exit.sexp_of_t)
+    ~f:(fun err -> Error.create "non-zero status" err Exit.sexp_of_t)
 
 let string_error res = Result.map_error res
     ~f:Exit.to_string
