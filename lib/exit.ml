@@ -15,10 +15,6 @@ let re_status = function
   | "stopped", i -> Unix.WSTOPPED i
   | _ -> failwith "should't get here"
 
-let sexp_of_status = function
-  | Sexp.List [s; i] -> re_status (string_of_sexp s, int_of_sexp i)
-  | s -> failwith ("bad sexp, apparently: " ^ Sexp.to_string s)
-
 type t =
   { pid : int
   ; args : string array

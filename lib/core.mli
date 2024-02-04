@@ -1,7 +1,3 @@
-module Unix = UnixLabels
-open Base
-open Stdio
-
 exception Subprocess_error of string
 
 type ('stdin, 'stdout, 'stderr) t =
@@ -13,19 +9,19 @@ type ('stdin, 'stdout, 'stderr) t =
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
 
-type stdin = unit
-type stdout = unit
-type stderr = unit
-type channel = unit
-type devnull = unit
+type stdin
+type stdout
+type stderr
+type channel
+type devnull
 
-let stdin = ()
-let stdout = ()
-let stderr = ()
-let channel = ()
-let devnull = ()
+val stdin : stdin
+val stdout : stdout
+val stderr : stderr
+val channel : channel
+val devnull : devnull
 
-module In = struct
+module In : sig
   type pipe = Out_channel.t
   type _ t =
     | Stdin : stdin t
@@ -33,17 +29,17 @@ module In = struct
     | Pipe : pipe t
 end
 
-module Out = struct
+module Out : sig
   type pipe = In_channel.t
   type _ t =
     | Stdout : stdout t
-    | Stderr : stdout t
+    | Stderr : stderr t
     | Channel : Out_channel.t -> channel t
     | Devnull : devnull t
     | Pipe : pipe t
 end
 
-module Cmd = struct
+module Cmd : sig
   type ('stdin, 'stdout, 'stderr) t =
     { args : string array
     ; stdin : 'stdin In.t
