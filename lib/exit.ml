@@ -49,5 +49,3 @@ let check t =
   match t.status with
   | Unix.WEXITED 0 -> Ok t
   | _ -> Error t
-
-type 'a result = ('a, t) Result.t
