@@ -58,7 +58,8 @@ let exec Cmd.{args; stdin; stdout; stderr} =
 let check t =
   Exit.check (t.close ())
 
-let in_context t ~f =
+let in_context cmd ~f =
+  let t = exec cmd in
     let output =
       try f t with
       | e ->
@@ -81,8 +82,7 @@ let string_error res = Result.map_error res
     ~f:Exit.to_string
 
 let _bind_helper check cmd f =
-  let t = exec cmd in
-  let proc, output = in_context t ~f in
+  let proc, output = in_context cmd ~f in
   Result.bind ~f:(fun _ -> output) (check proc)
   
 let bind_exit_t cmd f = _bind_helper Exit.check cmd f
@@ -96,10 +96,48 @@ let bind_string_error cmd f =
 let (let$) = bind_exit_t
 let (let*) res f = Result.bind res ~f
 
-let fold cmd ~f ~init =
-  let$ t = cmd |> pipe in
-  Ok (In_channel.fold_lines f init t.stdout)
+module Fold = struct
+  (* module type S = sig *)
+  (*   type out *)
+  (*   type err *)
+  (*   val pipe : ('i, 'o, 'e) Cmd.t -> ('i2, out, err) Cmd.t *)
+  (*   val get_stream : ('i, out, err) Cmd.t -> In_channel.t *)
+  (* end *)
 
-let fold_err cmd ~f ~init =
-  let$ t = cmd |> pipe_err in
-  Ok (In_channel.fold_lines f init t.stderr)
+  (* module Make(M : S) = struct *)
+  (* let unchecked cmd ~f ~init = *)
+  (*   in_context (cmd |> M.pipe) ~f:(fun t -> *)
+  (*       In_channel.fold_lines f init (M.get_stream t) *)
+  (*     ) *)
+
+  (* let res cmd ~f ~init = *)
+  (*   let$ t = cmd |> M.pipe in *)
+  (*   Ok (In_channel.fold_lines f init (M.get_stream t)) *)
+
+  (* let exn cmd ~f ~init = *)
+  (*   res cmd ~f ~init |> or_error |> Or_error.ok_exn *)
+  (* end *)
+  let _get_out t = t.stdout
+  let _get_err t = t.stderr
+
+  let _unchecked pipe get_stream cmd f init =
+    in_context (cmd |> pipe) ~f:(fun t ->
+        In_channel.fold_lines f init (get_stream t)
+      )
+
+  let _res pipe get_stream cmd f init =
+    let$ t = cmd |> pipe in
+    Ok (In_channel.fold_lines f init (get_stream t))
+
+  let _exn pipe get_stream cmd f init =
+    _res pipe get_stream cmd f init |> or_error |> Or_error.ok_exn
+
+  let unchecked cmd ~f ~init = _unchecked pipe _get_out cmd f init
+  let res cmd ~f ~init = _res pipe _get_out cmd f init
+  let exn cmd ~f ~init = _exn pipe _get_out cmd f init
+  let unchecked_err cmd ~f ~init = _unchecked pipe_err _get_err cmd f init
+  let res_err cmd ~f ~init = _res pipe_err _get_err cmd f init
+  let err cmd ~f ~init = _exn pipe_err _get_err cmd f init
+end
+
+let fold = Fold.exn

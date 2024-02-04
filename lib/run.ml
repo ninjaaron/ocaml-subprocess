@@ -21,7 +21,7 @@ module Make(M : S)  = struct
   let _unchecked cmd =
     let get_out = get_reader cmd.Cmd.stdout in
     let get_err = get_reader cmd.Cmd.stderr in
-    let proc, (stdout, stderr) = in_context (exec cmd) ~f:(fun t ->
+    let proc, (stdout, stderr) = in_context cmd ~f:(fun t ->
         get_out t.stdout, get_err t.stderr
       ) in {proc; stdout; stderr}
 
