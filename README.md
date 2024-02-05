@@ -1,3 +1,6 @@
+_I'm currently in the process of creating this library and the interface is
+changing daily. Don't use it until this warning goes away._
+
 Subprocess is a library for safely and (relatively) easily working
 launching processes with commands on Unix systems. It is vaguely
 inspired by Python's `subprocess` module, but do not expect it to have
