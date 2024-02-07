@@ -29,9 +29,9 @@ let pipe_err cmd = set_err Pipe cmd
 let channel_in ic cmd = set_in (Channel ic) cmd
 let channel oc cmd = set_out (Channel oc) cmd
 let channel_err oc cmd = set_err (Channel oc) cmd
-let file_in s cmd = channel_in (In_channel.open_text s) cmd
-let file s cmd = channel (Out_channel.open_text s) cmd
-let file_err s cmd = channel_err (Out_channel.open_text s) cmd
+let file_in s cmd = set_in (File s) cmd
+let file s cmd = set_out (File s) cmd
+let file_err s cmd = set_err (File s) cmd
 let devnull cmd = set_out Devnull cmd
 let devnull_err cmd = set_err Devnull cmd
 
@@ -84,16 +84,21 @@ let string_error res = Result.map_error res
 let _bind_helper check cmd f =
   let proc, output = in_context cmd ~f in
   Result.bind ~f:(fun _ -> output) (check proc)
-  
-let bind_exit_t cmd f = _bind_helper Exit.check cmd f
 
-let bind_or_error cmd f =
+let bind_exn cmd ~f =
+  let proc, output = in_context cmd ~f in
+  Result.map ~f:(fun _ -> output) (Exit.check proc)
+  |> or_error |> Or_error.ok_exn
+  
+let bind_exit_t cmd ~f = _bind_helper Exit.check cmd f
+
+let bind_or_error cmd ~f =
   _bind_helper (Fn.compose or_error Exit.check) cmd f
 
-let bind_string_error cmd f =
+let bind_string_error cmd ~f =
   _bind_helper (Fn.compose string_error Exit.check) cmd f
 
-let (let$) = bind_exit_t
+let (let$) cmd f = bind_exit_t cmd ~f
 let (let*) res f = Result.bind res ~f
 
 module Fold = struct

@@ -17,9 +17,9 @@ val pipe_err : ('i, 'o, 'e) Cmd.t -> ('i, 'o, in_channel) Cmd.t
 val channel_in : in_channel -> ('i, 'o, 'e) Cmd.t -> (channel, 'o, 'e) Cmd.t
 val channel : out_channel -> ('i, 'o, 'e) Cmd.t -> ('i, channel, 'e) Cmd.t
 val channel_err : out_channel -> ('i, 'o, 'e) Cmd.t -> ('i, 'o, channel) Cmd.t
-val file_in : string -> ('i, 'o, 'e) Cmd.t -> (channel, 'o, 'e) Cmd.t
-val file : string -> ('i, 'o, 'e) Cmd.t -> ('i, channel, 'e) Cmd.t
-val file_err : string -> ('i, 'o, 'e) Cmd.t -> ('i, 'o, channel) Cmd.t
+val file_in : string -> ('i, 'o, 'e) Cmd.t -> (file, 'o, 'e) Cmd.t
+val file : string -> ('i, 'o, 'e) Cmd.t -> ('i, file, 'e) Cmd.t
+val file_err : string -> ('i, 'o, 'e) Cmd.t -> ('i, 'o, file) Cmd.t
 val devnull : ('i, 'o, 'e) Cmd.t -> ('i, devnull, 'e) Cmd.t
 val devnull_err : ('i, 'o, 'e) Cmd.t -> ('i, 'o, devnull) Cmd.t
 
@@ -79,15 +79,17 @@ val (let$) : ('i, 'o, 'e) Cmd.t
   -> ('a, Exit.t) result
 
 val bind_exit_t : ('i, 'o, 'e) Cmd.t
-  -> (('i, 'o, 'e) t -> ('a, Exit.t) result)
+  -> f:(('i, 'o, 'e) t -> ('a, Exit.t) result)
   -> ('a, Exit.t) result
 
 val bind_or_error : ('i, 'o, 'e) Cmd.t
-  -> (('i, 'o, 'e) t -> ('a, Base.Error.t) result)
+  -> f:(('i, 'o, 'e) t -> ('a, Base.Error.t) result)
   -> ('a, Base.Error.t) result
 
 val bind_string_error : ('i, 'o, 'e) Cmd.t
-  -> (('i, 'o, 'e) t -> ('a, string) result)
+  -> f:(('i, 'o, 'e) t -> ('a, string) result)
   -> ('a, string) result
+
+val bind_exn : ('i, 'o, 'e) Cmd.t -> f:(('i, 'o, 'e) t -> 'a) -> 'a
 
 val exec : ('i, 'o, 'e) Cmd.t -> ('i, 'o, 'e) t

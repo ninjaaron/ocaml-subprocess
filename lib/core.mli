@@ -14,6 +14,7 @@ type stdout
 type stderr
 type channel
 type devnull
+type file = File of string
 
 val stdin : stdin
 val stdout : stdout
@@ -22,21 +23,21 @@ val channel : channel
 val devnull : devnull
 
 module In : sig
-  type pipe = Out_channel.t
   type _ t =
     | Stdin : stdin t
-    | Channel : In_channel.t -> channel t
-    | Pipe : pipe t
+    | Channel : in_channel -> channel t
+    | File : string -> file t
+    | Pipe : out_channel t
 end
 
 module Out : sig
-  type pipe = In_channel.t
   type _ t =
     | Stdout : stdout t
     | Stderr : stderr t
-    | Channel : Out_channel.t -> channel t
+    | Channel : out_channel -> channel t
+    | File : string -> file t
     | Devnull : devnull t
-    | Pipe : pipe t
+    | Pipe : in_channel t
 end
 
 module Cmd : sig

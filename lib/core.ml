@@ -18,6 +18,7 @@ type stdout = unit
 type stderr = unit
 type channel = unit
 type devnull = unit
+type file = File of string
 
 let stdin = ()
 let stdout = ()
@@ -26,21 +27,21 @@ let channel = ()
 let devnull = ()
 
 module In = struct
-  type pipe = Out_channel.t
   type _ t =
     | Stdin : stdin t
     | Channel : In_channel.t -> channel t
-    | Pipe : pipe t
+    | File : string -> file t
+    | Pipe : Out_channel.t t
 end
 
 module Out = struct
-  type pipe = In_channel.t
   type _ t =
     | Stdout : stdout t
     | Stderr : stdout t
     | Channel : Out_channel.t -> channel t
+    | File : string -> file t
     | Devnull : devnull t
-    | Pipe : pipe t
+    | Pipe : In_channel.t t
 end
 
 module Cmd = struct
