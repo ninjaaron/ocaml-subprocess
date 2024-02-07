@@ -9,18 +9,12 @@ type ('stdin, 'stdout, 'stderr) t =
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
 
-type stdin
-type stdout
-type stderr
-type channel
-type devnull
+type stdin = Stdin
+type stdout = Stdout
+type stderr = Stderr
+type channel = Channel
+type devnull = Devnull
 type file = File of string
-
-val stdin : stdin
-val stdout : stdout
-val stderr : stderr
-val channel : channel
-val devnull : devnull
 
 module In : sig
   type _ t =

@@ -13,18 +13,12 @@ type ('stdin, 'stdout, 'stderr) t =
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
 
-type stdin = unit
-type stdout = unit
-type stderr = unit
-type channel = unit
-type devnull = unit
+type stdin = Stdin
+type stdout = Stdout
+type stderr = Stderr
+type channel = Channel
+type devnull = Devnull
 type file = File of string
-
-let stdin = ()
-let stdout = ()
-let stderr = ()
-let channel = ()
-let devnull = ()
 
 module In = struct
   type _ t =
@@ -37,7 +31,7 @@ end
 module Out = struct
   type _ t =
     | Stdout : stdout t
-    | Stderr : stdout t
+    | Stderr : stderr t
     | Channel : Out_channel.t -> channel t
     | File : string -> file t
     | Devnull : devnull t

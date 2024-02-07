@@ -1,23 +1,26 @@
 open Base
 open Sub2
 
+type exit = Exit.t
+
 type ('out, 'err) t =
-  { proc: Exit.t
+  { exit: exit
   ; stdout: 'out
   ; stderr: 'err
   }
 
 let get_out t = t.stdout
 let get_err t = t.stderr
+let get_exit t = t.exit
 
 let _unchecked reader _ cmd =
-  let proc, (stdout, stderr) = in_context cmd ~f:(fun t ->
+  let exit, (stdout, stderr) = in_context cmd ~f:(fun t ->
       reader t
-    ) in {proc; stdout; stderr}
+    ) in {exit; stdout; stderr}
 
 let _res reader post cmd =
   let t = _unchecked reader () cmd in
-  Result.map ~f:(fun _ -> post t) (Exit.check t.proc)
+  Result.map ~f:(fun _ -> post t) (Exit.check t.exit)
 
 let _exn reader post cmd =
   Or_error.ok_exn (_res reader post cmd |> or_error)

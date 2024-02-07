@@ -1,5 +1,7 @@
 open Sub2
-type ('out, 'err) t = { proc : Exit.t; stdout : 'out; stderr : 'err; }
+type exit
+type ('out, 'err) t = { exit : exit; stdout : 'out; stderr : 'err; }
+val get_exit : ('out, 'err) t -> Exit.t
 
 module Read : sig
   val unchecked : ('i, stdout, 'e) Cmd.t -> (string, 'e) t

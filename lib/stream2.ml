@@ -12,8 +12,8 @@ type 'a bookkeeping =
 
 open Core
 
-let prep_fd fd unit =
-  { handle=unit
+let prep_fd fd handle =
+  { handle
   ; send=fd
   ; cl=None
   ; closer = Fun.id
@@ -25,12 +25,12 @@ let channel_helper descr_of_channel oc =
   fd
 
 let prep_out (type a) : a Out.t -> a bookkeeping = function
-  | Stdout -> prep_fd Unix.stdout stdout
-  | Stderr -> prep_fd Unix.stderr stderr
-  | Devnull -> prep_fd (get_devnull ()) devnull
+  | Stdout -> prep_fd Unix.stdout Stdout
+  | Stderr -> prep_fd Unix.stderr Stderr
+  | Devnull -> prep_fd (get_devnull ()) Devnull
   | Channel oc ->
     let fd = channel_helper Unix.descr_of_out_channel oc in
-    prep_fd fd channel
+    prep_fd fd Channel
   | File s ->
     let fd = channel_helper Unix.descr_of_out_channel (Out_channel.open_text s) in
     prep_fd fd (File s)
@@ -44,10 +44,10 @@ let prep_out (type a) : a Out.t -> a bookkeeping = function
     }
 
 let prep_in (type a) : a In.t -> a bookkeeping = function
-  | Stdin -> prep_fd Unix.stdin stdin
+  | Stdin -> prep_fd Unix.stdin Stdin
   | Channel ic ->
     let fd = channel_helper Unix.descr_of_in_channel ic in
-    prep_fd fd channel
+    prep_fd fd Channel
   | File s ->
     let fd = channel_helper Unix.descr_of_in_channel (In_channel.open_text s) in
     prep_fd fd (File s)
