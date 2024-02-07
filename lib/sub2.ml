@@ -20,21 +20,6 @@ let cmd args =
       ; stderr=Out.Stderr
       }
 
-let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
-let set_out out_t cmd = Cmd.{cmd with stdout=out_t}
-let set_err out_t cmd = Cmd.{cmd with stderr=out_t}
-let pipe_in cmd = set_in Pipe cmd
-let pipe cmd = set_out Pipe cmd
-let pipe_err cmd = set_err Pipe cmd
-let channel_in ic cmd = set_in (Channel ic) cmd
-let channel oc cmd = set_out (Channel oc) cmd
-let channel_err oc cmd = set_err (Channel oc) cmd
-let file_in s cmd = set_in (File s) cmd
-let file s cmd = set_out (File s) cmd
-let file_err s cmd = set_err (File s) cmd
-let devnull cmd = set_out Devnull cmd
-let devnull_err cmd = set_err Devnull cmd
-
 let exec Cmd.{args; stdin; stdout; stderr} =
   let in' = Stream2.prep_in stdin in
   let out = Stream2.prep_out stdout in
@@ -137,9 +122,9 @@ module Fold = struct
   let _exn pipe get_stream cmd f init =
     _res pipe get_stream cmd f init |> or_error |> Or_error.ok_exn
 
-  let unchecked cmd ~f ~init = _unchecked pipe _get_out cmd f init
-  let res cmd ~f ~init = _res pipe _get_out cmd f init
-  let exn cmd ~f ~init = _exn pipe _get_out cmd f init
+  let unchecked cmd ~f ~init = _unchecked pipe_out _get_out cmd f init
+  let res cmd ~f ~init = _res pipe_out _get_out cmd f init
+  let exn cmd ~f ~init = _exn pipe_out _get_out cmd f init
   let unchecked_err cmd ~f ~init = _unchecked pipe_err _get_err cmd f init
   let res_err cmd ~f ~init = _res pipe_err _get_err cmd f init
   let err cmd ~f ~init = _exn pipe_err _get_err cmd f init

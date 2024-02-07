@@ -46,3 +46,18 @@ module Cmd = struct
     ; stderr: 'stderr Out.t
     }
 end
+
+let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
+let set_out out_t cmd = Cmd.{cmd with stdout=out_t}
+let set_err out_t cmd = Cmd.{cmd with stderr=out_t}
+let pipe_in cmd = set_in Pipe cmd
+let pipe_out cmd = set_out Pipe cmd
+let pipe_err cmd = set_err Pipe cmd
+let channel_in ic cmd = set_in (Channel ic) cmd
+let channel_out oc cmd = set_out (Channel oc) cmd
+let channel_err oc cmd = set_err (Channel oc) cmd
+let file_in s cmd = set_in (File s) cmd
+let file_out s cmd = set_out (File s) cmd
+let file_err s cmd = set_err (File s) cmd
+let devnull_out cmd = set_out Devnull cmd
+let devnull_err cmd = set_err Devnull cmd

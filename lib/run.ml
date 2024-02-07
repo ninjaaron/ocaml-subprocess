@@ -1,26 +1,28 @@
 open Base
 open Sub2
 
-type exit = Exit.t
-
-type ('out, 'err) t =
-  { exit: exit
-  ; stdout: 'out
-  ; stderr: 'err
+type ('stdin, 'stdout, 'stderr) t =
+  { pid: int
+  ; args: string array
+  ; status: Unix.process_status
+  ; stdin: 'stdin
+  ; stdout: 'stdout
+  ; stderr: 'stderr
   }
 
 let get_out t = t.stdout
 let get_err t = t.stderr
-let get_exit t = t.exit
+let get_exit {pid; args; status; _} = Exit.({pid; args; status})
 
 let _unchecked reader _ cmd =
-  let exit, (stdout, stderr) = in_context cmd ~f:(fun t ->
-      reader t
-    ) in {exit; stdout; stderr}
+  let Exit.{pid; args; status}, (stdin, (stdout, stderr)) =
+    in_context cmd ~f:(fun t ->
+      t.stdin, reader t
+    ) in {pid; args; status; stdin; stdout; stderr}
 
 let _res reader post cmd =
   let t = _unchecked reader () cmd in
-  Result.map ~f:(fun _ -> post t) (Exit.check t.exit)
+  Result.map ~f:(fun _ -> post t) (Exit.check (get_exit t))
 
 let _exn reader post cmd =
   Or_error.ok_exn (_res reader post cmd |> or_error)
@@ -33,11 +35,11 @@ end
 module Make(M : S)  = struct
 
   let _out_helper f cmd =
-    cmd |> pipe |> f Sub2.(fun t -> M.reader t.stdout, t.stderr) get_out
+    cmd |> pipe_out |> f Sub2.(fun t -> M.reader t.stdout, t.stderr) get_out
   let _err_helper f cmd =
     cmd |> pipe_err |> f Sub2.(fun t -> t.stdout, M.reader t.stderr) get_err
   let _both_helper f cmd =
-    cmd |> pipe |> pipe_err
+    cmd |> pipe_out |> pipe_err
     |> f Sub2.(fun t -> M.reader t.stdout, M.reader t.stderr) Fn.id
 
   let unchecked cmd = _out_helper _unchecked cmd

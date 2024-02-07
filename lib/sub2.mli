@@ -8,21 +8,6 @@ val poll : ('i, 'o, 'e) t -> Unix.process_status option
 
 val cmd : string array -> (stdin, stdout, stderr) Cmd.t
 
-(* val set_in : 'i2 In.t -> ('i1, 'o, 'e) Cmd.t -> ('i2, 'o, 'e) Cmd.t *)
-(* val set_out : 'o2 Out.t -> ('i, 'o1, 'e) Cmd.t -> ('i, 'o2, 'e) Cmd.t *)
-(* val set_err : 'e2 Out.t -> ('i, 'o, 'e1) Cmd.t -> ('i, 'o, 'e2) Cmd.t *)
-val pipe_in : ('i, 'o, 'e) Cmd.t -> (out_channel, 'o, 'e) Cmd.t
-val pipe : ('i, 'o, 'e) Cmd.t -> ('i, in_channel, 'e) Cmd.t
-val pipe_err : ('i, 'o, 'e) Cmd.t -> ('i, 'o, in_channel) Cmd.t
-val channel_in : in_channel -> ('i, 'o, 'e) Cmd.t -> (channel, 'o, 'e) Cmd.t
-val channel : out_channel -> ('i, 'o, 'e) Cmd.t -> ('i, channel, 'e) Cmd.t
-val channel_err : out_channel -> ('i, 'o, 'e) Cmd.t -> ('i, 'o, channel) Cmd.t
-val file_in : string -> ('i, 'o, 'e) Cmd.t -> (file, 'o, 'e) Cmd.t
-val file : string -> ('i, 'o, 'e) Cmd.t -> ('i, file, 'e) Cmd.t
-val file_err : string -> ('i, 'o, 'e) Cmd.t -> ('i, 'o, file) Cmd.t
-val devnull : ('i, 'o, 'e) Cmd.t -> ('i, devnull, 'e) Cmd.t
-val devnull_err : ('i, 'o, 'e) Cmd.t -> ('i, 'o, devnull) Cmd.t
-
 val check : ('i, 'o, 'e) t -> (Exit.t, Exit.t) result
 
 val in_context : ('i, 'o, 'e) Cmd.t -> f:(('i, 'o, 'e) t -> 'a) -> Exit.t * 'a
@@ -34,38 +19,38 @@ val err_lines : ('i, 'o, in_channel) t -> string list
 val write : (out_channel, 'o, 'e) t -> string -> unit
 
 module Fold : sig
-  val unchecked : ('i, 'o, 'e) Cmd.t
+  val unchecked : ('i, stdout, 'e) Cmd.t
     -> f:('acc -> string -> 'acc)
     -> init:'acc
     -> Exit.t * 'acc
 
-  val res : ('i, 'o, 'e) Cmd.t
+  val res : ('i, stdout, 'e) Cmd.t
     -> f:('acc -> string -> 'acc)
     -> init:'acc
     -> ('acc, Exit.t) result
 
-  val exn : ('i, 'o, 'e) Cmd.t
+  val exn : ('i, stdout, 'e) Cmd.t
     -> f:('acc -> string -> 'acc)
     -> init:'acc
     -> 'acc
 
-  val unchecked_err : ('i, 'o, 'e) Cmd.t
+  val unchecked_err : ('i, 'o, stderr) Cmd.t
     -> f:('acc -> string -> 'acc)
     -> init:'acc
     -> Exit.t * 'acc
 
-  val res_err : ('i, 'o, 'e) Cmd.t
+  val res_err : ('i, 'o, stderr) Cmd.t
     -> f:('acc -> string -> 'acc)
     -> init:'acc
     -> ('acc, Exit.t) result
 
-  val err : ('i, 'o, 'e) Cmd.t
+  val err : ('i, 'o, stderr) Cmd.t
     -> f:('acc -> string -> 'acc)
     -> init:'acc
     -> 'acc
 end
 
-val fold : ('i, 'o, 'e) Cmd.t
+val fold : ('i, stdout, 'e) Cmd.t
   -> f:('acc -> string -> 'acc)
   -> init:'acc
   -> 'acc
