@@ -1,6 +1,4 @@
 module Unix = UnixLabels
-open Base
-open Stdio
 
 exception Subprocess_error of string
 
@@ -13,6 +11,22 @@ type ('stdin, 'stdout, 'stderr) t =
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
 
+let wait ?(mode = []) t = Unix.waitpid ~mode t.pid
+let poll t =
+  match Unix.waitpid ~mode:[ Unix.WNOHANG ] t.pid with
+  | 0, _ -> None
+  | _, status -> Some status
+
+let check t =
+  Exit.check (t.close ())
+
+let line t = In_channel.input_line t.stdout
+let lines t = In_channel.input_lines t.stdout
+let err_line t = In_channel.input_line t.stderr
+let err_lines t = In_channel.input_lines t.stderr
+
+let write t s = Out_channel.output_string t.stdin s
+
 type stdin = Stdin
 type stdout = Stdout
 type stderr = Stderr
@@ -23,19 +37,19 @@ type file = File of string
 module In = struct
   type _ t =
     | Stdin : stdin t
-    | Channel : In_channel.t -> channel t
+    | Channel : in_channel -> channel t
     | File : string -> file t
-    | Pipe : Out_channel.t t
+    | Pipe : out_channel t
 end
 
 module Out = struct
   type _ t =
     | Stdout : stdout t
     | Stderr : stderr t
-    | Channel : Out_channel.t -> channel t
+    | Channel : out_channel -> channel t
     | File : string -> file t
     | Devnull : devnull t
-    | Pipe : In_channel.t t
+    | Pipe : in_channel t
 end
 
 module Cmd = struct
@@ -46,6 +60,13 @@ module Cmd = struct
     ; stderr: 'stderr Out.t
     }
 end
+
+let cmd args =
+  Cmd.{ args
+      ; stdin=In.Stdin
+      ; stdout=Out.Stdout
+      ; stderr=Out.Stderr
+      }
 
 let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
 let set_out out_t cmd = Cmd.{cmd with stdout=out_t}

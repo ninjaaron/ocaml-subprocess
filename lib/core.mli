@@ -9,6 +9,20 @@ type ('stdin, 'stdout, 'stderr) t =
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
 
+val wait : ?mode:Unix.wait_flag list
+  -> ('i, 'o, 'e) t
+  -> int * Unix.process_status
+
+val poll : ('i, 'o, 'e) t -> Unix.process_status option
+
+val check : ('i, 'o, 'e) t -> (Exit.t, Exit.t) result
+
+val line : ('i, in_channel, 'e) t -> string option
+val lines : ('i, in_channel, 'e) t -> string list
+val err_line : ('i, 'o, in_channel) t -> string option
+val err_lines : ('i, 'o, in_channel) t -> string list
+val write : (out_channel, 'o, 'e) t -> string -> unit
+
 type stdin = Stdin
 type stdout = Stdout
 type stderr = Stderr
@@ -43,9 +57,11 @@ module Cmd : sig
     }
 end
 
-(* val set_in : 'i2 In.t -> ('i1, 'o, 'e) Cmd.t -> ('i2, 'o, 'e) Cmd.t *)
-(* val set_out : 'o2 Out.t -> ('i, 'o1, 'e) Cmd.t -> ('i, 'o2, 'e) Cmd.t *)
-(* val set_err : 'e2 Out.t -> ('i, 'o, 'e1) Cmd.t -> ('i, 'o, 'e2) Cmd.t *)
+val cmd : string array -> (stdin, stdout, stderr) Cmd.t
+
+val set_in : 'i2 In.t -> ('i1, 'o, 'e) Cmd.t -> ('i2, 'o, 'e) Cmd.t
+val set_out : 'o2 Out.t -> ('i, 'o1, 'e) Cmd.t -> ('i, 'o2, 'e) Cmd.t
+val set_err : 'e2 Out.t -> ('i, 'o, 'e1) Cmd.t -> ('i, 'o, 'e2) Cmd.t
 val pipe_in : (stdin, 'o, 'e) Cmd.t -> (out_channel, 'o, 'e) Cmd.t
 val pipe_out : ('i, stdout, 'e) Cmd.t -> ('i, in_channel, 'e) Cmd.t
 val pipe_err : ('i, 'o, stderr) Cmd.t -> ('i, 'o, in_channel) Cmd.t

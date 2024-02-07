@@ -1,4 +1,4 @@
-open Sub2
+open Core
 type ('stdin, 'stdout, 'stderr) t =
   { pid: int
   ; args: string array

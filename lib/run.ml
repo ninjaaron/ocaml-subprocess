@@ -1,5 +1,5 @@
 open Base
-open Sub2
+open Core
 
 type ('stdin, 'stdout, 'stderr) t =
   { pid: int
@@ -16,7 +16,7 @@ let get_exit {pid; args; status; _} = Exit.({pid; args; status})
 
 let _unchecked reader _ cmd =
   let Exit.{pid; args; status}, (stdin, (stdout, stderr)) =
-    in_context cmd ~f:(fun t ->
+    Exec.in_context cmd ~f:(fun t ->
       t.stdin, reader t
     ) in {pid; args; status; stdin; stdout; stderr}
 
@@ -25,7 +25,7 @@ let _res reader post cmd =
   Result.map ~f:(fun _ -> post t) (Exit.check (get_exit t))
 
 let _exn reader post cmd =
-  Or_error.ok_exn (_res reader post cmd |> or_error)
+  Or_error.ok_exn (_res reader post cmd |> Bind.map_or_error)
 
 module type S = sig
   type out
@@ -35,12 +35,12 @@ end
 module Make(M : S)  = struct
 
   let _out_helper f cmd =
-    cmd |> pipe_out |> f Sub2.(fun t -> M.reader t.stdout, t.stderr) get_out
+    cmd |> pipe_out |> f Core.(fun t -> M.reader t.stdout, t.stderr) get_out
   let _err_helper f cmd =
-    cmd |> pipe_err |> f Sub2.(fun t -> t.stdout, M.reader t.stderr) get_err
+    cmd |> pipe_err |> f Core.(fun t -> t.stdout, M.reader t.stderr) get_err
   let _both_helper f cmd =
     cmd |> pipe_out |> pipe_err
-    |> f Sub2.(fun t -> M.reader t.stdout, M.reader t.stderr) Fn.id
+    |> f Core.(fun t -> M.reader t.stdout, M.reader t.stderr) Fn.id
 
   let unchecked cmd = _out_helper _unchecked cmd
   let res cmd = _out_helper _res cmd
@@ -63,7 +63,7 @@ module Lines = Make(struct
     let reader = In_channel.input_lines
   end)
 
-let _neither t = Sub2.(t.stdout, t.stderr)
+let _neither t = Core.(t.stdout, t.stderr)
 
 let unchecked cmd = _unchecked _neither () cmd
 let res cmd = _res _neither (fun _ -> ()) cmd
