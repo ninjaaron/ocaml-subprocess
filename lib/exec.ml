@@ -8,9 +8,9 @@ let _create ~stdout ~stdin ~stderr args =
   Unix.create_process ~prog:args.(0) ~args ~stdout ~stdin ~stderr
 
 let exec Cmd.{args; stdin; stdout; stderr} =
-  let in' = Stream2.prep_in stdin in
-  let out = Stream2.prep_out stdout in
-  let err = Stream2.prep_out stderr in
+  let in' = Stream.prep_in stdin in
+  let out = Stream.prep_out stdout in
+  let err = Stream.prep_out stderr in
   let pid = _create ~stdin:in'.send ~stdout:out.send ~stderr:err.send args in
   let close ?(mode = []) () =
     in'.closer ();

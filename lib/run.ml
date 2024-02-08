@@ -25,7 +25,7 @@ let _res reader post cmd =
   Result.map ~f:(fun _ -> post t) (Exit.check (get_exit t))
 
 let _exn reader post cmd =
-  Or_error.ok_exn (_res reader post cmd |> Bind.map_or_error)
+  Exit.exn (_res reader post cmd)
 
 module type S = sig
   type out

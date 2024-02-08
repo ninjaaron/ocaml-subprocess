@@ -17,12 +17,6 @@ val poll : ('i, 'o, 'e) t -> Unix.process_status option
 
 val check : ('i, 'o, 'e) t -> (Exit.t, Exit.t) result
 
-val line : ('i, in_channel, 'e) t -> string option
-val lines : ('i, in_channel, 'e) t -> string list
-val err_line : ('i, 'o, in_channel) t -> string option
-val err_lines : ('i, 'o, in_channel) t -> string list
-val write : (out_channel, 'o, 'e) t -> string -> unit
-
 type stdin = Stdin
 type stdout = Stdout
 type stderr = Stderr

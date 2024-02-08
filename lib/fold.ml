@@ -18,7 +18,7 @@ open Base
 (*   Ok (In_channel.fold_lines f init (M.get_stream t)) *)
 
 (* let exn cmd ~f ~init = *)
-(*   res cmd ~f ~init |> or_error |> Or_error.ok_exn *)
+(*   res cmd ~f ~init |> Exit.exn *)
 (* end *)
 let _get_out t = t.stdout
 let _get_err t = t.stderr
@@ -33,7 +33,7 @@ let _res pipe get_stream cmd f init =
   Ok (In_channel.fold_lines f init (get_stream t)))
 
 let _exn pipe get_stream cmd f init =
-  _res pipe get_stream cmd f init |> Bind.map_or_error |> Or_error.ok_exn
+  _res pipe get_stream cmd f init |> Exit.exn
 
 let unchecked cmd ~f ~init = _unchecked pipe_out _get_out cmd f init
 let res cmd ~f ~init = _res pipe_out _get_out cmd f init

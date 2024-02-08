@@ -49,3 +49,11 @@ let check t =
   match t.status with
   | Unix.WEXITED 0 -> Ok t
   | _ -> Error t
+
+let or_error res = Result.map_error res
+    ~f:(fun err -> Error.create "non-zero status" err sexp_of_t)
+
+let string_error res = Result.map_error res
+    ~f:to_string
+
+let exn res = Or_error.ok_exn (or_error res)
