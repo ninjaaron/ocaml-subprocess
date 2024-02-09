@@ -1,15 +1,16 @@
 open Core
 
-val exit_t : ('i, 'o, 'e) Cmd.t
-  -> f:(('i, 'o, 'e) t -> ('a, Exit.t) result)
+val exit_t : ('stdin, 'stdout, 'stderr) Cmd.t
+  -> f:(('stdin, 'stdout, 'stderr) t -> ('a, Exit.t) result)
   -> ('a, Exit.t) result
 
-val or_error : ('i, 'o, 'e) Cmd.t
-  -> f:(('i, 'o, 'e) t -> ('a, Base.Error.t) result)
+val or_error : ('stdin, 'stdout, 'stderr) Cmd.t
+  -> f:(('stdin, 'stdout, 'stderr) t -> ('a, Base.Error.t) result)
   -> ('a, Base.Error.t) result
 
-val string_error : ('i, 'o, 'e) Cmd.t
-  -> f:(('i, 'o, 'e) t -> ('a, string) result)
+val string_error : ('stdin, 'stdout, 'stderr) Cmd.t
+  -> f:(('stdin, 'stdout, 'stderr) t -> ('a, string) result)
   -> ('a, string) result
 
-val exn : ('i, 'o, 'e) Cmd.t -> f:(('i, 'o, 'e) t -> 'a) -> 'a
+val exn : ('stdin, 'stdout, 'stderr) Cmd.t
+  -> f:(('stdin, 'stdout, 'stderr) t -> 'a) -> 'a

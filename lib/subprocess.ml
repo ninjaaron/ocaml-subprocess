@@ -7,20 +7,21 @@ let read = Run.Read.exn
 let lines = Run.Lines.exn
 let read_err = Run.Read.err_exn
 let lines_err = Run.Lines.err_exn
+let fold = Fold.exn
+let fold_err = Fold.err
 
 module Results = struct
-
   let exec = Bind.exit_t
   let run = Run.res
   let read = Run.Read.res
   let lines = Run.Lines.res
   let read_err = Run.Read.res
   let lines_err = Run.Lines.res
+  let fold = Fold.res
+  let fold_err = Fold.res_err
 
   let (let*) = Result.bind
-  let (let$) cmd f = exec cmd ~f
-
-  include Core
+  let (let|) cmd f = exec cmd ~f
 end
 
 module Or_error = struct
@@ -32,9 +33,7 @@ module Or_error = struct
   let lines_err cmd = Run.Lines.res cmd |> Exit.or_error
 
   let (let*) = Result.bind
-  let (let$) cmd f = exec cmd ~f
-
-  include Core
+  let (let|) cmd f = exec cmd ~f
 end
 
 module Unchecked = struct
@@ -44,8 +43,6 @@ module Unchecked = struct
   let lines = Run.Lines.unchecked
   let read_err = Run.Read.err_unchecked
   let lines_err = Run.Lines.err_unchecked
-
-  include Core
 end
 
 module Exec = Exec

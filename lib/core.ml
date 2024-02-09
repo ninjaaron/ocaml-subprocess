@@ -1,7 +1,5 @@
 module Unix = UnixLabels
 
-exception Subprocess_error of string
-
 type ('stdin, 'stdout, 'stderr) t =
   { pid : int
   ; args : string array
@@ -19,13 +17,6 @@ let poll t =
 
 let check t =
   Exit.check (t.close ())
-
-(* let line t = In_channel.input_line t.stdout *)
-(* let lines t = In_channel.input_lines t.stdout *)
-(* let err_line t = In_channel.input_line t.stderr *)
-(* let err_lines t = In_channel.input_lines t.stderr *)
-
-(* let write t s = Out_channel.output_string t.stdin s *)
 
 type stdin = Stdin
 type stdout = Stdout

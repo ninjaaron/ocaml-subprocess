@@ -1,4 +1,4 @@
 open Core
 
-val exec : ('i, 'o, 'e) Cmd.t -> ('i, 'o, 'e) t
-val in_context : ('i, 'o, 'e) Cmd.t -> f:(('i, 'o, 'e) t -> 'a) -> Exit.t * 'a
+val exec : ('stdin, 'stdout, 'stderr) Cmd.t -> ('stdin, 'stdout, 'stderr) t
+val in_context : ('stdin, 'stdout, 'stderr) Cmd.t -> f:(('stdin, 'stdout, 'stderr) t -> 'a) -> Exit.t * 'a
