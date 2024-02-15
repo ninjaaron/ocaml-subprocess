@@ -24,38 +24,38 @@ let channel_helper descr_of_channel oc =
   Unix.set_close_on_exec fd;
   fd
 
-let prep_out (type a) : a Out.t -> a bookkeeping = function
-  | Stdout -> prep_fd Unix.stdout Stdout
-  | Stderr -> prep_fd Unix.stderr Stderr
-  | Devnull -> prep_fd (get_devnull ()) Devnull
+let prep_out (type a) : a Cmd.Out.t -> a Out.t bookkeeping = function
+  | Stdout -> prep_fd Unix.stdout Out.Stdout
+  | Stderr -> prep_fd Unix.stderr Out.Stderr
+  | Devnull -> prep_fd (get_devnull ()) Out.Devnull
   | Channel oc ->
     let fd = channel_helper Unix.descr_of_out_channel oc in
-    prep_fd fd Channel
+    prep_fd fd Out.Channel
   | File s ->
     let fd = channel_helper Unix.descr_of_out_channel (Out_channel.open_text s) in
-    prep_fd fd (File s)
+    prep_fd fd (Out.File s)
   | Pipe ->
     let r, w = Unix.pipe ~cloexec:true () in
-    let handle = Unix.in_channel_of_descr r in
-    { handle
+    let ic = Unix.in_channel_of_descr r in
+    { handle = Out.Pipe ic
     ; send = w
     ; cl = Some w
-    ; closer = fun () -> In_channel.close handle
+    ; closer = fun () -> In_channel.close ic
     }
 
-let prep_in (type a) : a In.t -> a bookkeeping = function
-  | Stdin -> prep_fd Unix.stdin Stdin
+let prep_in (type a) : a Cmd.In.t -> a In.t bookkeeping = function
+  | Stdin -> prep_fd Unix.stdin In.Stdin
   | Channel ic ->
     let fd = channel_helper Unix.descr_of_in_channel ic in
-    prep_fd fd Channel
+    prep_fd fd In.Channel
   | File s ->
     let fd = channel_helper Unix.descr_of_in_channel (In_channel.open_text s) in
-    prep_fd fd (File s)
+    prep_fd fd (In.File s)
   | Pipe ->
     let r, w = Unix.pipe ~cloexec:true () in
-    let handle = Unix.out_channel_of_descr w in
-    { handle
+    let oc = Unix.out_channel_of_descr w in
+    { handle = In.Pipe oc
     ; send = r
     ; cl = Some r
-    ; closer = fun () -> Out_channel.close handle
+    ; closer = fun () -> Out_channel.close oc
     }

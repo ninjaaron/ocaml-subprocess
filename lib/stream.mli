@@ -8,5 +8,5 @@ type 'a bookkeeping =
 }
 
 val get_devnull : unit -> Unix.file_descr
-val prep_out : 'a Out.t -> 'a bookkeeping
-val prep_in : 'a In.t -> 'a bookkeeping
+val prep_out : 'a Cmd.Out.t -> 'a Out.t bookkeeping
+val prep_in : 'a Cmd.In.t -> 'a In.t bookkeeping

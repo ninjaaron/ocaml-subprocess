@@ -5,7 +5,7 @@ type ('stdin, 'stdout, 'stderr) t =
   { pid: int
   ; args: string array
   ; status: Unix.process_status
-  ; stdin: 'stdin
+  ; stdin: 'stdin In.t
   ; stdout: 'stdout
   ; stderr: 'stderr
   }
@@ -35,12 +35,12 @@ end
 module Make(M : S)  = struct
 
   let _out_helper f cmd =
-    cmd |> pipe_out |> f Core.(fun t -> M.reader t.stdout, t.stderr) get_out
+    cmd |> pipe_out |> f Core.(fun t -> M.reader (stdout t), t.stderr) get_out
   let _err_helper f cmd =
-    cmd |> pipe_err |> f Core.(fun t -> t.stdout, M.reader t.stderr) get_err
+    cmd |> pipe_err |> f Core.(fun t -> t.stdout, M.reader (stderr t)) get_err
   let _both_helper f cmd =
     cmd |> pipe_out |> pipe_err
-    |> f Core.(fun t -> M.reader t.stdout, M.reader t.stderr) Fn.id
+    |> f Core.(fun t -> M.reader (stdout t), M.reader (stderr t)) Fn.id
 
   let unchecked cmd = _out_helper _unchecked cmd
   let res cmd = _out_helper _res cmd

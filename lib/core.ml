@@ -1,13 +1,38 @@
 module Unix = UnixLabels
 
+type stdin type stdout type stderr
+type channel type devnull type file type pipe
+
+module In = struct
+  type _ t =
+    | Stdin : stdin t
+    | Channel : channel t
+    | File : string -> file t
+    | Pipe : Out_channel.t -> pipe t
+end
+
+module Out = struct
+  type _ t =
+    | Stdout : stdout t
+    | Stderr : stderr t
+    | Channel : channel t
+    | File : string -> file t
+    | Devnull : devnull t
+    | Pipe : In_channel.t -> pipe t
+end
+
 type ('stdin, 'stdout, 'stderr) t =
   { pid : int
   ; args : string array
-  ; stdin : 'stdin
-  ; stdout : 'stdout
-  ; stderr : 'stderr
+  ; stdin : 'stdin In.t
+  ; stdout : 'stdout Out.t
+  ; stderr : 'stderr Out.t
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
+
+let stdin = function {stdin=In.Pipe oc; _} -> oc
+let stdout = function {stdout=Out.Pipe ic; _} -> ic
+let stderr = function {stderr=Out.Pipe ic; _} -> ic
 
 let wait ?(mode = []) t = Unix.waitpid ~mode t.pid
 let poll t =
@@ -18,32 +43,26 @@ let poll t =
 let check t =
   Exit.check (t.close ())
 
-type stdin = Stdin
-type stdout = Stdout
-type stderr = Stderr
-type channel = Channel
-type devnull = Devnull
-type file = File of string
-
-module In = struct
-  type _ t =
-    | Stdin : stdin t
-    | Channel : in_channel -> channel t
-    | File : string -> file t
-    | Pipe : out_channel t
-end
-
-module Out = struct
-  type _ t =
-    | Stdout : stdout t
-    | Stderr : stderr t
-    | Channel : out_channel -> channel t
-    | File : string -> file t
-    | Devnull : devnull t
-    | Pipe : in_channel t
-end
 
 module Cmd = struct
+  module In = struct
+    type _ t =
+      | Stdin : stdin t
+      | Channel : In_channel.t -> channel t
+      | File : string -> file t
+      | Pipe : pipe t
+  end
+
+  module Out = struct
+    type _ t =
+      | Stdout : stdout t
+      | Stderr : stderr t
+      | Channel : Out_channel.t -> channel t
+      | File : string -> file t
+      | Devnull : devnull t
+      | Pipe : pipe t
+  end
+
   type ('stdin, 'stdout, 'stderr) t =
     { args : string array
     ; stdin : 'stdin In.t

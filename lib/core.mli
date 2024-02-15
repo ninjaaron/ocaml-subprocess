@@ -1,11 +1,36 @@
+type stdin type stdout type stderr
+type channel type devnull type file type pipe
+
+module In : sig
+  type _ t =
+    | Stdin : stdin t
+    | Channel : channel t
+    | File : string -> file t
+    | Pipe : Out_channel.t -> pipe t
+end
+
+module Out : sig
+  type _ t =
+    | Stdout : stdout t
+    | Stderr : stderr t
+    | Channel : channel t
+    | File : string -> file t
+    | Devnull : devnull t
+    | Pipe : In_channel.t -> pipe t
+end
+
 type ('stdin, 'stdout, 'stderr) t =
   { pid : int
   ; args : string array
-  ; stdin : 'stdin
-  ; stdout : 'stdout
-  ; stderr : 'stderr
+  ; stdin : 'stdin In.t
+  ; stdout : 'stdout Out.t
+  ; stderr : 'stderr Out.t
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
+
+val stdin : (pipe, 'stdout, 'stderr) t -> out_channel
+val stdout : ('stdin, pipe, 'stderr) t -> in_channel
+val stderr : ('stdin, 'stdout, pipe) t -> in_channel
 
 val wait : ?mode:Unix.wait_flag list
   -> ('stdin, 'stdout, 'stderr) t
@@ -15,32 +40,25 @@ val poll : ('stdin, 'stdout, 'stderr) t -> Unix.process_status option
 
 val check : ('stdin, 'stdout, 'stderr) t -> (Exit.t, Exit.t) result
 
-type stdin = Stdin
-type stdout = Stdout
-type stderr = Stderr
-type channel = Channel
-type devnull = Devnull
-type file = File of string
-
-module In : sig
-  type _ t =
-    | Stdin : stdin t
-    | Channel : in_channel -> channel t
-    | File : string -> file t
-    | Pipe : out_channel t
-end
-
-module Out : sig
-  type _ t =
-    | Stdout : stdout t
-    | Stderr : stderr t
-    | Channel : out_channel -> channel t
-    | File : string -> file t
-    | Devnull : devnull t
-    | Pipe : in_channel t
-end
-
 module Cmd : sig
+  module In : sig
+    type _ t =
+      | Stdin : stdin t
+      | Channel : in_channel -> channel t
+      | File : string -> file t
+      | Pipe : pipe t
+  end
+
+  module Out : sig
+    type _ t =
+      | Stdout : stdout t
+      | Stderr : stderr t
+      | Channel : out_channel -> channel t
+      | File : string -> file t
+      | Devnull : devnull t
+      | Pipe : pipe t
+  end
+
   type ('stdin, 'stdout, 'stderr) t =
     { args : string array
     ; stdin : 'stdin In.t
@@ -51,21 +69,21 @@ end
 
 val cmd : string array -> (stdin, stdout, stderr) Cmd.t
 
-val set_in : 'stdin2 In.t
+val set_in : 'stdin2 Cmd.In.t
   -> ('stdin1, 'stdout, 'stderr) Cmd.t
   -> ('stdin2, 'stdout, 'stderr) Cmd.t
-val set_out : 'stdout2 Out.t
+val set_out : 'stdout2 Cmd.Out.t
   -> ('stdin, 'stdout1, 'stderr) Cmd.t
   -> ('stdin, 'stdout2, 'stderr) Cmd.t
-val set_err : 'stderr2 Out.t
+val set_err : 'stderr2 Cmd.Out.t
   -> ('stdin, 'stdout, 'stderr1) Cmd.t
   -> ('stdin, 'stdout, 'stderr2) Cmd.t
 val pipe_in : (stdin, 'stdout, 'stderr) Cmd.t
-  -> (out_channel, 'stdout, 'stderr) Cmd.t
+  -> (pipe, 'stdout, 'stderr) Cmd.t
 val pipe_out : ('stdin, stdout, 'stderr) Cmd.t
-  -> ('stdin, in_channel, 'stderr) Cmd.t
+  -> ('stdin, pipe, 'stderr) Cmd.t
 val pipe_err : ('stdin, 'stdout, stderr) Cmd.t
-  -> ('stdin, 'stdout, in_channel) Cmd.t
+  -> ('stdin, 'stdout, pipe) Cmd.t
 val channel_in : in_channel
   -> (stdin, 'stdout, 'stderr) Cmd.t
   -> (channel, 'stdout, 'stderr) Cmd.t
