@@ -93,11 +93,21 @@ module Unchecked : sig
   val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
     f:(('stdin, 'stdout, 'stderr) t -> 'a) ->
     Exit.t * 'a
-  val run : ('stdin, 'stdout, 'stderr) Cmd.t -> ('stdin, 'stdout, 'stderr) Run.t
-  val read : ('stdin, stdout, 'stderr) Cmd.t -> ('stdin, string, 'stderr) Run.t
-  val lines : ('stdin, stdout, 'stderr) Cmd.t -> ('stdin, string list, 'stderr) Run.t
-  val read_err : ('stdin, 'stdout, stderr) Cmd.t -> ('stdin, 'stdout, string) Run.t
-  val lines_err : ('stdin, 'stdout, stderr) Cmd.t -> ('stdin, 'stdout, string list) Run.t
+  val run :
+    ('stdin, 'stdout, 'stderr) Cmd.t ->
+    ('stdin, 'stdout, 'stderr) Run.t
+  val read :
+    ('stdin, stdout, 'stderr) Cmd.t ->
+    ('stdin, string, 'stderr) Run.t
+  val lines :
+    ('stdin, stdout, 'stderr) Cmd.t ->
+    ('stdin, string list, 'stderr) Run.t
+  val read_err :
+    ('stdin, 'stdout, stderr) Cmd.t ->
+    ('stdin, 'stdout, string) Run.t
+  val lines_err :
+    ('stdin, 'stdout, stderr) Cmd.t ->
+    ('stdin, 'stdout, string list) Run.t
 
   include module type of Core
 end
