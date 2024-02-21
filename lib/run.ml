@@ -5,7 +5,7 @@ type ('stdin, 'stdout, 'stderr) t =
   { pid: int
   ; args: string array
   ; status: Unix.process_status
-  ; stdin: 'stdin In.t
+  ; stdin: 'stdin
   ; stdout: 'stdout
   ; stderr: 'stderr
   }
@@ -17,7 +17,7 @@ let get_exit {pid; args; status; _} = Exit.({pid; args; status})
 let _unchecked reader _ cmd =
   let Exit.{pid; args; status}, (stdin, (stdout, stderr)) =
     Exec.in_context cmd ~f:(fun t ->
-      t.stdin, reader t
+     Core.In.conv t.stdin, reader t
     ) in {pid; args; status; stdin; stdout; stderr}
 
 let _res reader post cmd =
@@ -35,9 +35,9 @@ end
 module Make(M : S)  = struct
 
   let _out_helper f cmd =
-    cmd |> pipe_out |> f Core.(fun t -> M.reader (stdout t), t.stderr) get_out
+    cmd |> pipe_out |> f Core.(fun t -> M.reader (stdout t), Out.conv t.stderr) get_out
   let _err_helper f cmd =
-    cmd |> pipe_err |> f Core.(fun t -> t.stdout, M.reader (stderr t)) get_err
+    cmd |> pipe_err |> f Core.(fun t -> Out.conv t.stdout, M.reader (stderr t)) get_err
   let _both_helper f cmd =
     cmd |> pipe_out |> pipe_err
     |> f Core.(fun t -> M.reader (stdout t), M.reader (stderr t)) Fn.id
@@ -63,7 +63,7 @@ module Lines = Make(struct
     let reader = In_channel.input_lines
   end)
 
-let _neither t = Core.(t.stdout, t.stderr)
+let _neither t = Core.(Out.conv t.stdout, Out.conv t.stderr)
 
 let unchecked cmd = _unchecked _neither () cmd
 let res cmd = _res _neither (fun _ -> ()) cmd

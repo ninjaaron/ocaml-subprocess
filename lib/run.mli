@@ -3,7 +3,7 @@ type ('stdin, 'stdout, 'stderr) t =
   { pid: int
   ; args: string array
   ; status: Unix.process_status
-  ; stdin: 'stdin In.t
+  ; stdin: 'stdin
   ; stdout: 'stdout
   ; stderr: 'stderr
   }
@@ -11,12 +11,12 @@ val get_exit : ('stdin, 'stdout, 'stderr) t -> Exit.t
 
 module Read : sig
   val unchecked : ('stdin, stdout, 'stderr) Cmd.t
-    -> ('stdin, string, 'stderr Out.t) t
+    -> ('stdin, string, 'stderr) t
   val res : ('stdin, stdout, 'stderr) Cmd.t
     -> (string, Exit.t) result
   val exn : ('stdin, stdout, 'stderr) Cmd.t -> string
   val err_unchecked : ('stdin, 'stdout, stderr) Cmd.t
-    -> ('stdin, 'stdout Out.t, string) t
+    -> ('stdin, 'stdout, string) t
   val err_res : ('stdin, 'stdout, stderr) Cmd.t
     -> (string, Exit.t) result
   val err_exn : ('stdin, 'stdout, stderr) Cmd.t -> string
@@ -30,12 +30,12 @@ end
 
 module Lines : sig
   val unchecked : ('stdin, stdout, 'stderr) Cmd.t
-    -> ('stdin, string list, 'stderr Out.t) t
+    -> ('stdin, string list, 'stderr) t
   val res : ('stdin, stdout, 'stderr) Cmd.t
     -> (string list, Exit.t) result
   val exn : ('stdin, stdout, 'stderr) Cmd.t -> string list
   val err_unchecked : ('stdin, 'stdout, stderr) Cmd.t
-    -> ('stdin, 'stdout Out.t, string list) t
+    -> ('stdin, 'stdout, string list) t
   val err_res : ('stdin, 'stdout, stderr) Cmd.t
     -> (string list, Exit.t) result
   val err_exn : ('stdin, 'stdout, stderr) Cmd.t -> string list
@@ -48,6 +48,6 @@ module Lines : sig
 end
 
 val unchecked : ('stdin, 'stdout, 'stderr) Cmd.t
-  -> ('stdin, 'stdout Out.t, 'stderr Out.t) t
+  -> ('stdin, 'stdout, 'stderr) t
 val res : ('stdin, 'stdout, 'stderr) Cmd.t -> (unit, Exit.t) result
 val exn : ('stdin, 'stdout, 'stderr) Cmd.t -> unit

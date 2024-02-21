@@ -1,7 +1,12 @@
 module Unix = UnixLabels
 
-type stdin type stdout type stderr
-type channel type devnull type file type pipe
+type stdin = Stdin
+type stdout = Stdout
+type stderr = Stderr
+type channel = Channel
+type devnull = Devnull
+type file = File of string
+type pipe = Pipe
 
 module In = struct
   type _ t =
@@ -9,6 +14,12 @@ module In = struct
     | Channel : channel t
     | File : string -> file t
     | Pipe : Out_channel.t -> pipe t
+
+  let conv (type a) : a t -> a = function
+    | Stdin -> Stdin
+    | Channel -> Channel
+    | File s -> File s
+    | Pipe _ -> Pipe
 end
 
 module Out = struct
@@ -19,6 +30,14 @@ module Out = struct
     | File : string -> file t
     | Devnull : devnull t
     | Pipe : In_channel.t -> pipe t
+
+  let conv (type a) : a t -> a = function
+    | Stdout -> Stdout
+    | Stderr -> Stderr
+    | Channel -> Channel
+    | File s -> File s
+    | Devnull -> Devnull
+    | Pipe _ -> Pipe
 end
 
 type ('stdin, 'stdout, 'stderr) t =
