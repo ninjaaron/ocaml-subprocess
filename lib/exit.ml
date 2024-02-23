@@ -1,4 +1,4 @@
-open Base
+exception Subprocess_error of string
 
 let unify_status = function
   | Unix.WEXITED i -> "exited", i
@@ -9,37 +9,17 @@ let status_to_string status =
   let s, i = unify_status status in
   Printf.sprintf "%s %d" s i
 
-let re_status = function
-  | "exited", i -> Unix.WEXITED i
-  | "signaled", i -> Unix.WSIGNALED i
-  | "stopped", i -> Unix.WSTOPPED i
-  | _ -> failwith "should't get here"
+(* let re_status = function *)
+(*   | "exited", i -> Unix.WEXITED i *)
+(*   | "signaled", i -> Unix.WSIGNALED i *)
+(*   | "stopped", i -> Unix.WSTOPPED i *)
+(*   | _ -> failwith "should't get here" *)
 
 type t =
   { pid : int
   ; args : string array
   ; status : Unix.process_status
   } 
-
-let sexp_of_t {pid; args; status} =
-  [%sexp
-    { pid = (pid : int)
-    ; args = (args : string array)
-    ; status = (unify_status status : string * int)
-    } ]
-
-let t_of_sexp sexp =
-  let open Sexp in
-  match sexp with
-  | List [ List [Atom "pid"; pid]
-         ; List [Atom "args"; args]
-         ; List [Atom "status"; List [s; i]]
-         ] ->
-    { pid = Int.t_of_sexp pid
-    ; args = array_of_sexp string_of_sexp args
-    ; status = re_status (string_of_sexp s, int_of_sexp i)
-    }
-  | s -> failwith ("bad sexp, apparently: " ^ Sexp.to_string s)
 
 let to_string {pid; args; status} =
   Printf.sprintf "pid: %d, status: %s\n%s"
@@ -50,10 +30,7 @@ let check t =
   | Unix.WEXITED 0 -> Ok t
   | _ -> Error t
 
-let or_error res = Result.map_error res
-    ~f:(fun err -> Error.create "non-zero status" err sexp_of_t)
-
-let string_error res = Result.map_error res
-    ~f:to_string
-
-let exn res = Or_error.ok_exn (or_error res)
+let string_error res = Result.map_error to_string res
+let exn = function
+  | Ok a -> a
+  | Error t -> raise (Subprocess_error (to_string t))

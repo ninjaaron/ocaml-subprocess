@@ -1,6 +1,6 @@
 module Unix = UnixLabels
-open Base
 open Core
+open StdLabels
 
 let _create ~stdout ~stdin ~stderr args =
   if Array.length args < 1 then
@@ -24,7 +24,7 @@ let exec Cmd.{args; stdin; stdout; stderr} =
           ; stderr = err.handle
           ; close
           } in
-  List.iter ~f:(Option.iter ~f:Unix.close) [ in'.cl; out.cl; err.cl ];
+  List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
   t
 
 let in_context cmd ~f =

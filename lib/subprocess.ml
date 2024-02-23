@@ -28,22 +28,6 @@ module Results = struct
 
 end
 
-module Or_error = struct
-  include Core
-
-  let exec cmd ~f = Bind.or_error cmd ~f
-  let run cmd = Run.res cmd |> Exit.or_error
-  let read cmd = Run.Read.res cmd |> Exit.or_error
-  let lines cmd = Run.Lines.res cmd |> Exit.or_error
-  let read_err cmd = Run.Read.err_res cmd |> Exit.or_error
-  let lines_err cmd = Run.Lines.err_res cmd |> Exit.or_error
-  let fold cmd ~f ~init = Fold.res cmd ~f ~init |> Exit.or_error
-  let fold_err cmd ~f ~init = Fold.res_err cmd ~f ~init |> Exit.or_error
-
-  let (let*) = Result.bind
-  let (let|) cmd f = exec cmd ~f
-end
-
 module Unchecked = struct
   include Core
 

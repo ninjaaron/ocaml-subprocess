@@ -1,4 +1,3 @@
-open Base
 open Core
 
 type ('stdin, 'stdout, 'stderr) t =
@@ -22,7 +21,7 @@ let _unchecked reader _ cmd =
 
 let _res reader post cmd =
   let t = _unchecked reader () cmd in
-  Result.map ~f:(fun _ -> post t) (Exit.check (get_exit t))
+  Result.map (fun _ -> post t) (Exit.check (get_exit t))
 
 let _exn reader post cmd =
   Exit.exn (_res reader post cmd)
@@ -40,7 +39,7 @@ module Make(M : S)  = struct
     cmd |> pipe_err |> f Core.(fun t -> Out.conv t.stdout, M.reader (stderr t)) get_err
   let _both_helper f cmd =
     cmd |> pipe_out |> pipe_err
-    |> f Core.(fun t -> M.reader (stdout t), M.reader (stderr t)) Fn.id
+    |> f Core.(fun t -> M.reader (stdout t), M.reader (stderr t)) Fun.id
 
   let unchecked cmd = _out_helper _unchecked cmd
   let res cmd = _out_helper _res cmd

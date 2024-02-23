@@ -56,39 +56,6 @@ module Results : sig
   include module type of Core
 end
 
-module Or_error : sig
-  val exec : 
-    ('stdin, 'stdout, 'stderr) Cmd.t ->
-    f:(('stdin, 'stdout, 'stderr) t -> ('a, Base.Error.t) result) ->
-    ('a, Base.Error.t) result
-  val run : ('stdin, 'stdout, 'stderr) Cmd.t -> (unit, Base.Error.t) result
-  val read : ('stdin, stdout, 'stderr) Cmd.t -> (string, Base.Error.t) result
-  val lines : ('stdin, stdout, 'stderr) Cmd.t -> (string list, Base.Error.t) result
-  val read_err : ('stdin, 'stdout, stderr) Cmd.t -> (string, Base.Error.t) result
-  val lines_err : ('stdin, 'stdout, stderr) Cmd.t -> (string list, Base.Error.t) result
-  val fold : 
-    ('stdin, stdout, 'stderr) Cmd.t ->
-    f:('acc -> string -> 'acc) ->
-    init:'acc ->
-    ('acc, Base.Error.t) result
-  val fold_err : 
-    ('stdin, 'stdout, stderr) Cmd.t ->
-    f:('acc -> string -> 'acc) ->
-    init:'acc ->
-    ('acc, Base.Error.t) result
-
-  val (let*) : 
-    ('a, 'b) result ->
-    ('a -> ('c, 'b) result) ->
-    ('c, 'b) result
-  val (let|) : 
-    ('stdin, 'stderr, 'stdout) Cmd.t ->
-    (('stdin, 'stderr, 'stdout) t -> ('a, Base.Error.t) result) ->
-    ('a, Base.Error.t) result
-
-  include module type of Core
-end
-
 module Unchecked : sig
   val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
     f:(('stdin, 'stdout, 'stderr) t -> 'a) ->
