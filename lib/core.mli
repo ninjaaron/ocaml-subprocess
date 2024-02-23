@@ -14,14 +14,13 @@
     cases. Their main function is to provide type-level information
     about the streams. *)
 
-type stdin (** stdin of the parent process *)
-type stdout (** stdout of the parent process *)
-type stderr (** stderr of the parent process *)
-type channel (** stream redirects to/from a channel *)
-type devnull (** stream redirects to /dev/null *)
-type pipe (** stream was connected to a pipe and has a handle *)
-type file = File of string (** stream redirects to a file which is represented
-                               by its name *)
+type stdin
+type stdout
+type stderr
+type channel
+type devnull
+type pipe
+type file = File of string
 
 module In : sig
   type _ t =
