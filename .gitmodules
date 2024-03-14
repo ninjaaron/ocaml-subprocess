@@ -1,0 +1,3 @@
+[submodule "vendor/ocaml-tiny-sexp"]
+	path = vendor/ocaml-tiny-sexp
+	url = https://github.com/ninjaaron/ocaml-tiny-sexp
