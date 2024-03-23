@@ -3,8 +3,6 @@ open Core
 open StdLabels
 
 let _create ~stdout ~stdin ~stderr args =
-  if Array.length args < 1 then
-    failwith "process arguments can't be empty";
   Unix.create_process ~prog:args.(0) ~args ~stdout ~stdin ~stderr
 
 let exec Cmd.{args; stdin; stdout; stderr} =

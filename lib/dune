@@ -1,4 +1,4 @@
 (library
  (public_name subprocess)
  (name subprocess)
- (libraries unix sexp))
+ (libraries unix))

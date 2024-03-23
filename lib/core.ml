@@ -91,6 +91,7 @@ module Cmd = struct
 end
 
 let cmd args =
+  if Array.length args < 1 then failwith "argument array must not be empty";
   Cmd.{ args
       ; stdin=In.Stdin
       ; stdout=Out.Stdout
