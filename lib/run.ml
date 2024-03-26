@@ -1,23 +1,29 @@
 open Core
 
-type ('stdin, 'stdout, 'stderr) t =
+type ('stdout, 'stderr) t =
   { pid: int
-  ; args: string array
+  ; cmd: Cmd.Mono.t
   ; status: Unix.process_status
-  ; stdin: 'stdin
   ; stdout: 'stdout
   ; stderr: 'stderr
   }
 
 let get_out t = t.stdout
 let get_err t = t.stderr
-let get_exit {pid; args; status; _} = Exit.({pid; args; status})
+let get_exit {pid; cmd; status; _} =
+  Exit.({pid; cmd; status})
 
-let _unchecked reader _ cmd =
-  let Exit.{pid; args; status}, (stdin, (stdout, stderr)) =
-    Exec.in_context cmd ~f:(fun t ->
-     Core.In.conv t.stdin, reader t
-    ) in {pid; args; status; stdin; stdout; stderr}
+let pp out {pid; status; cmd; _} =
+  Format.fprintf out "run(@[pid: %i,@ %s,@ %a@])"
+    pid (Exit.status_to_string status) Cmd.Mono.pp cmd
+
+let show t =
+  Format.asprintf "%a" pp t
+
+let _unchecked reader _ cmd' =
+  let Exit.{pid; cmd; status}, (stdout, stderr) =
+    Exec.in_context cmd' ~f:(fun t -> reader t) in
+  {pid; cmd; status; stdout; stderr}
 
 let _res reader post cmd =
   let t = _unchecked reader () cmd in

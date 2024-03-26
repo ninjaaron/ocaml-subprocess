@@ -5,7 +5,7 @@ open StdLabels
 let _create ~stdout ~stdin ~stderr args =
   Unix.create_process ~prog:args.(0) ~args ~stdout ~stdin ~stderr
 
-let exec Cmd.{args; stdin; stdout; stderr} =
+let exec (Cmd.{args; stdin; stdout; stderr} as cmd) =
   let in' = Stream.prep_in stdin in
   let out = Stream.prep_out stdout in
   let err = Stream.prep_out stderr in
@@ -14,9 +14,9 @@ let exec Cmd.{args; stdin; stdout; stderr} =
     in'.closer ();
     let pid, status = Unix.waitpid ~mode pid in
     out.closer (); err.closer ();
-    Exit.{pid; status; args} in
+    Exit.{pid; status; cmd = (Cmd.to_mono cmd)} in
   let t = { pid
-          ; args
+          ; cmd
           ; stdin = in'.handle
           ; stdout = out.handle
           ; stderr = err.handle

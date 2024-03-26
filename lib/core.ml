@@ -1,12 +1,6 @@
 module Unix = UnixLabels
-
-type stdin = Stdin
-type stdout = Stdout
-type stderr = Stderr
-type channel = Channel
-type devnull = Devnull
-type file = File of string
-type pipe = Pipe
+module Cmd = Cmd
+include Io
 
 module In = struct
   type _ t =
@@ -42,12 +36,19 @@ end
 
 type ('stdin, 'stdout, 'stderr) t =
   { pid : int
-  ; args : string array
+  ; cmd : ('stdin, 'stdout, 'stderr) Cmd.t
   ; stdin : 'stdin In.t
   ; stdout : 'stdout Out.t
   ; stderr : 'stderr Out.t
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
+
+let pp out {pid; cmd; _} =
+  Format.fprintf out "process(@[pid: %d,@ %a@])"
+    pid Cmd.Mono.pp @@ Cmd.to_mono cmd
+
+let show t =
+  Format.asprintf "%a" pp t
 
 let stdin = function {stdin=In.Pipe oc; _} -> oc
 let stdout = function {stdout=Out.Pipe ic; _} -> ic
@@ -61,34 +62,6 @@ let poll t =
 
 let check t =
   Exit.check (t.close ())
-
-
-module Cmd = struct
-  module In = struct
-    type _ t =
-      | Stdin : stdin t
-      | Channel : In_channel.t -> channel t
-      | File : string -> file t
-      | Pipe : pipe t
-  end
-
-  module Out = struct
-    type _ t =
-      | Stdout : stdout t
-      | Stderr : stderr t
-      | Channel : Out_channel.t -> channel t
-      | File : string -> file t
-      | Devnull : devnull t
-      | Pipe : pipe t
-  end
-
-  type ('stdin, 'stdout, 'stderr) t =
-    { args : string array
-    ; stdin : 'stdin In.t
-    ; stdout: 'stdout Out.t
-    ; stderr: 'stderr Out.t
-    }
-end
 
 let cmd args =
   if Array.length args < 1 then failwith "argument array must not be empty";

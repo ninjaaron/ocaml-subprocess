@@ -14,13 +14,8 @@
     cases. Their main function is to provide type-level information
     about the streams. *)
 
-type stdin
-type stdout
-type stderr
-type channel
-type devnull
-type pipe
-type file = File of string
+include module type of Io
+module Cmd = Cmd
 
 module In : sig
   type _ t =
@@ -50,12 +45,17 @@ end
     this type *)
 type ('stdin, 'stdout, 'stderr) t =
   { pid : int
-  ; args : string array
+  ; cmd : ('stdin, 'stdout, 'stderr) Cmd.t
   ; stdin : 'stdin In.t
   ; stdout : 'stdout Out.t
   ; stderr : 'stderr Out.t
   ; close : ?mode:Unix.wait_flag list -> unit -> Exit.t
   }
+
+val pp : Format.formatter -> ('stdin, 'stdout, 'stderr) t -> unit
+[@@ocaml.toplevel_printer]
+
+val show : ('stdin, 'stdout, 'stderr) t -> string
 
 val stdin : (pipe, 'stdout, 'stderr) t -> out_channel
 val stdout : ('stdin, pipe, 'stderr) t -> in_channel
@@ -69,83 +69,42 @@ val poll : ('stdin, 'stdout, 'stderr) t -> Unix.process_status option
 
 val check : ('stdin, 'stdout, 'stderr) t -> (Exit.t, Exit.t) result
 
-module Cmd : sig
-  module In : sig
-    type _ t =
-      | Stdin : stdin t
-      | Channel : in_channel -> channel t
-      | File : string -> file t
-      | Pipe : pipe t
-  end
-
-  module Out : sig
-    type _ t =
-      | Stdout : stdout t
-      | Stderr : stderr t
-      | Channel : out_channel -> channel t
-      | File : string -> file t
-      | Devnull : devnull t
-      | Pipe : pipe t
-  end
-
-  type ('stdin, 'stdout, 'stderr) t =
-    { args : string array
-    ; stdin : 'stdin In.t
-    ; stdout: 'stdout Out.t
-    ; stderr: 'stderr Out.t
-    }
-end
-
 val cmd : string array -> (stdin, stdout, stderr) Cmd.t
 
-val set_in :
-  'new_stdin Cmd.In.t ->
-  (stdin, 'stdout, 'stderr) Cmd.t ->
-  ('new_stdin, 'stdout, 'stderr) Cmd.t
-val set_out :
-  'new_stdout Cmd.Out.t ->
-  ('stdin, stdout, 'stderr) Cmd.t ->
-  ('stdin, 'new_stdout, 'stderr) Cmd.t
-val set_err :
-  'new_stderr Cmd.Out.t ->
-  ('stdin, 'stdout, stderr) Cmd.t ->
-  ('stdin, 'stdout, 'new_stderr) Cmd.t
-val pipe_in :
-  (stdin, 'stdout, 'stderr) Cmd.t ->
-  (pipe, 'stdout, 'stderr) Cmd.t
-val pipe_out :
-  ('stdin, stdout, 'stderr) Cmd.t ->
-  ('stdin, pipe, 'stderr) Cmd.t
-val pipe_err :
-  ('stdin, 'stdout, stderr) Cmd.t ->
-  ('stdin, 'stdout, pipe) Cmd.t
-val channel_in :
-  in_channel ->
-  (stdin, 'stdout, 'stderr) Cmd.t ->
-  (channel, 'stdout, 'stderr) Cmd.t
-val channel_out :
-  out_channel ->
-  ('stdin, stdout, 'stderr) Cmd.t ->
-  ('stdin, channel, 'stderr) Cmd.t
-val channel_err :
-  out_channel ->
-  ('stdin, 'stdout, stderr) Cmd.t ->
-  ('stdin, 'stdout, channel) Cmd.t
-val file_in :
-  string ->
-  (stdin, 'stdout, 'stderr) Cmd.t ->
-  (file, 'stdout, 'stderr) Cmd.t
-val file_out :
-  string ->
-  ('stdin, stdout, 'stderr) Cmd.t ->
-  ('stdin, file, 'stderr) Cmd.t
-val file_err :
-  string ->
-  ('stdin, 'stdout, stderr) Cmd.t ->
-  ('stdin, 'stdout, file) Cmd.t
-val devnull_out :
-  ('stdin, stdout, 'stderr) Cmd.t ->
-  ('stdin, devnull, 'stderr) Cmd.t
-val devnull_err :
-  ('stdin, 'stdout, stderr) Cmd.t ->
-  ('stdin, 'stdout, devnull) Cmd.t
+val set_in : 'stdin Cmd.In.t
+  -> (stdin, 'stdout, 'stderr) Cmd.t
+  -> ('stdin, 'stdout, 'stderr) Cmd.t
+val set_out : 'stdout Cmd.Out.t
+  -> ('stdin, stdout, 'stderr) Cmd.t
+  -> ('stdin, 'stdout, 'stderr) Cmd.t
+val set_err : 'stderr Cmd.Out.t
+  -> ('stdin, 'stdout, stderr) Cmd.t
+  -> ('stdin, 'stdout, 'stderr) Cmd.t
+val pipe_in : (stdin, 'stdout, 'stderr) Cmd.t
+  -> (pipe, 'stdout, 'stderr) Cmd.t
+val pipe_out : ('stdin, stdout, 'stderr) Cmd.t
+  -> ('stdin, pipe, 'stderr) Cmd.t
+val pipe_err : ('stdin, 'stdout, stderr) Cmd.t
+  -> ('stdin, 'stdout, pipe) Cmd.t
+val channel_in : in_channel
+  -> (stdin, 'stdout, 'stderr) Cmd.t
+  -> (channel, 'stdout, 'stderr) Cmd.t
+val channel_out : out_channel
+  -> ('stdin, stdout, 'stderr) Cmd.t
+  -> ('stdin, channel, 'stderr) Cmd.t
+val channel_err : out_channel
+  -> ('stdin, 'stdout, stderr) Cmd.t
+  -> ('stdin, 'stdout, channel) Cmd.t
+val file_in : string
+  -> (stdin, 'stdout, 'stderr) Cmd.t
+  -> (file, 'stdout, 'stderr) Cmd.t
+val file_out : string
+  -> ('stdin, stdout, 'stderr) Cmd.t
+  -> ('stdin, file, 'stderr) Cmd.t
+val file_err : string
+  -> ('stdin, 'stdout, stderr) Cmd.t
+  -> ('stdin, 'stdout, file) Cmd.t
+val devnull_out : ('stdin, stdout, 'stderr) Cmd.t
+  -> ('stdin, devnull, 'stderr) Cmd.t
+val devnull_err : ('stdin, 'stdout, stderr) Cmd.t
+  -> ('stdin, 'stdout, devnull) Cmd.t

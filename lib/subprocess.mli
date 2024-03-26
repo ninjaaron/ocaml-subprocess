@@ -62,19 +62,19 @@ module Unchecked : sig
     Exit.t * 'a
   val run :
     ('stdin, 'stdout, 'stderr) Cmd.t ->
-    ('stdin, 'stdout, 'stderr) Run.t
+    ('stdout, 'stderr) Run.t
   val read :
     ('stdin, stdout, 'stderr) Cmd.t ->
-    ('stdin, string, 'stderr) Run.t
+    (string, 'stderr) Run.t
   val lines :
     ('stdin, stdout, 'stderr) Cmd.t ->
-    ('stdin, string list, 'stderr) Run.t
+    (string list, 'stderr) Run.t
   val read_err :
     ('stdin, 'stdout, stderr) Cmd.t ->
-    ('stdin, 'stdout, string) Run.t
+    ('stdout, string) Run.t
   val lines_err :
     ('stdin, 'stdout, stderr) Cmd.t ->
-    ('stdin, 'stdout, string list) Run.t
+    ('stdout, string list) Run.t
 
   include module type of Core
 end
