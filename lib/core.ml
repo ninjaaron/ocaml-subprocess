@@ -64,8 +64,8 @@ let check t =
   Exit.check (t.close ())
 
 let cmd args =
-  if Array.length args < 1 then failwith "argument array must not be empty";
-  Cmd.{ args
+  if List.is_empty args then failwith "argument array must not be empty";
+  Cmd.{ args=Array.of_list args
       ; stdin=In.Stdin
       ; stdout=Out.Stdout
       ; stderr=Out.Stderr

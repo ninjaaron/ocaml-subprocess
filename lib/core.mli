@@ -69,7 +69,7 @@ val poll : ('stdin, 'stdout, 'stderr) t -> Unix.process_status option
 
 val check : ('stdin, 'stdout, 'stderr) t -> (Exit.t, Exit.t) result
 
-val cmd : string array -> (stdin, stdout, stderr) Cmd.t
+val cmd : string list -> (stdin, stdout, stderr) Cmd.t
 
 val set_in : 'stdin Cmd.In.t
   -> (stdin, 'stdout, 'stderr) Cmd.t

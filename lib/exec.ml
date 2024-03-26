@@ -6,9 +6,8 @@ let _create ~stdout ~stdin ~stderr args =
   Unix.create_process ~prog:args.(0) ~args ~stdout ~stdin ~stderr
 
 let exec (Cmd.{args; stdin; stdout; stderr} as cmd) =
-  let in' = Stream.prep_in stdin in
-  let out = Stream.prep_out stdout in
-  let err = Stream.prep_out stderr in
+  let in', out, err =
+    Stream.(prep_in stdin, prep_out stdout, prep_out stderr) in
   let pid = _create ~stdin:in'.send ~stdout:out.send ~stderr:err.send args in
   let close ?(mode = []) () =
     in'.closer ();
@@ -27,10 +26,8 @@ let exec (Cmd.{args; stdin; stdout; stderr} as cmd) =
 
 let in_context cmd ~f =
   let t = exec cmd in
-    let output =
-      try f t with
-      | e ->
-        let _ = t.close () in
-        raise e
-    in
-    t.close (), output
+  match f t with
+  | output -> t.close (), output
+  | exception e ->
+    let _ = t.close () in
+    raise e
