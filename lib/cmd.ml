@@ -63,15 +63,25 @@ module Mono = struct
     }
   type t = inner lazy_t
 
+  let pp_io out streams =
+    let streams' = ListLabels.filter_map streams
+      ~f:(fun (default, stream) ->
+          match Mono.show stream with
+          | s when s = default -> None
+          | s -> Some (default ^ ": " ^ s)) in
+    if List.is_empty streams' then ()
+    else Format.fprintf out ",@ ";
+    Format.(pp_print_list
+              ~pp_sep:(fun out () -> Format.fprintf out ",@ ")
+              Format.pp_print_string
+              out
+              streams')
+
   let pp out t =
     let {args; stdin; stdout; stderr} = Lazy.force t in
-    let in', out', err' = Mono.(show stdin, show stdout, show stderr) in
-    let in' = if in' = "stdin" then in' else "stdin: " ^ in'
-    and out' = if out' = "stdout" then out' else "stdout: " ^ out'
-    and err' = if err' = "stderr" then err' else "stderr: " ^ err' in
     let open Format in
-    fprintf out "@[%a@],@ %s,@ %s,@ %s"
-      pp_args args in' out' err'
+    fprintf out "@[%a@]%a"
+      pp_args args pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
 end
 
 let to_mono {args; stdin; stdout; stderr} =

@@ -24,8 +24,9 @@ let () =
   | _ -> None
 
 let pp out {pid; cmd; status} =
-  Format.fprintf out "(@[%s,@ pid: %i,@ %a@])"
-    (status_to_string status) pid Cmd.Mono.pp cmd
+  let label, code = unify_status status in
+  Format.fprintf out "(@[%s: %d,@ pid: %i,@ %a@])"
+    label code pid Cmd.Mono.pp cmd
 
 let show t =
   Format.asprintf "%a" pp t

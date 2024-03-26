@@ -11,3 +11,4 @@ val check : t -> (t, t) result
 val string_error : ('a, t) result -> ('a, string) result
 val exn : ('a, t) result -> 'a
 val status_to_string : Unix.process_status -> string
+val unify_status : Unix.process_status -> string * int

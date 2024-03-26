@@ -14,8 +14,9 @@ let get_exit {pid; cmd; status; _} =
   Exit.({pid; cmd; status})
 
 let pp out {pid; status; cmd; _} =
-  Format.fprintf out "run(@[pid: %i,@ %s,@ %a@])"
-    pid (Exit.status_to_string status) Cmd.Mono.pp cmd
+  let label, code = Exit.unify_status status in
+  Format.fprintf out "run(@[pid: %i,@ %s: %d,@ %a@])"
+    pid label code Cmd.Mono.pp cmd
 
 let show t =
   Format.asprintf "%a" pp t
