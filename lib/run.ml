@@ -25,9 +25,6 @@ module Make(M : S)  = struct
     cmd |> pipe_out |> f Core.(fun t -> M.reader (stdout t), Out.conv t.stderr) get_out
   let _err_helper f cmd =
     cmd |> pipe_err |> f Core.(fun t -> Out.conv t.stdout, M.reader (stderr t)) get_err
-  let _both_helper f cmd =
-    cmd |> pipe_out |> pipe_err
-    |> f Core.(fun t -> M.reader (stdout t), M.reader (stderr t)) Fun.id
 
   let res cmd = _out_helper _res cmd
   let unchecked cmd = _out_helper _unchecked cmd
@@ -35,9 +32,12 @@ module Make(M : S)  = struct
   let err_unchecked cmd = _err_helper _unchecked cmd
   let err_res cmd = _err_helper _res cmd
   let err_exn cmd = _err_helper _exn cmd
-  let both_unchecked cmd = _both_helper _unchecked cmd
-  let both_res cmd = _both_helper _res cmd
-  let both_exn cmd = _both_helper _exn cmd
+  let both_unchecked cmd =
+    Exec.shared_context cmd ~f:(fun t -> M.reader (stdout t))
+  let both_res cmd =
+    let ex, out = both_unchecked cmd in
+    Result.map (fun _ -> out) (Exit.check ex)
+  let both_exn cmd = Exit.exn (both_res cmd)
 end
 
 module Read = Make(struct
