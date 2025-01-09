@@ -1,5 +1,6 @@
 module Exit = Exit
 module Core = Core
+module Cmd = Cmd
 include Core
 
 let exec = Bind.exn
@@ -24,7 +25,7 @@ module Results = struct
   let fold_err = Fold.res_err
 
   let (let*) = Result.bind
-  let (let|) cmd f = exec cmd ~f
+  let (let&) cmd f = exec cmd ~f
 
 end
 
@@ -37,6 +38,8 @@ module Unchecked = struct
   let lines = Run.Lines.unchecked
   let read_err = Run.Read.err_unchecked
   let lines_err = Run.Lines.err_unchecked
+  let fold = Fold.unchecked
+  let fold_err = Fold.unchecked_err
 end
 
 module Exec = Exec

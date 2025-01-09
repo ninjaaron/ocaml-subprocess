@@ -15,14 +15,6 @@ type t =
   ; status : Unix.process_status
   } 
 
-exception Subprocess_error of string
-
-let () =
-  Printexc.register_printer @@ function
-  | Subprocess_error s ->
-    Some (Printf.sprintf "Subprocess_error%s" s)
-  | _ -> None
-
 let pp out {pid; cmd; status} =
   let label, code = unify_status status in
   Format.fprintf out "(@[%s: %d,@ pid: %i,@ %a@])"
@@ -39,4 +31,4 @@ let check t =
 let string_error res = Result.map_error show  res
 let exn = function
   | Ok a -> a
-  | Error t -> raise (Subprocess_error (show t))
+  | Error t -> raise (Io.Subprocess_error (show t))

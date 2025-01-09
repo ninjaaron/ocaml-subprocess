@@ -1,34 +1,15 @@
 open Core
 
-type ('stdout, 'stderr) t =
-  { pid: int
-  ; cmd: Cmd.Mono.t
-  ; status: Unix.process_status
-  ; stdout: 'stdout
-  ; stderr: 'stderr
-  }
+let get_out (out, _) = out
+let get_err (_, err) = err
 
-let get_out t = t.stdout
-let get_err t = t.stderr
-let get_exit {pid; cmd; status; _} =
-  Exit.({pid; cmd; status})
-
-let pp out {pid; status; cmd; _} =
-  let label, code = Exit.unify_status status in
-  Format.fprintf out "run(@[pid: %i,@ %s: %d,@ %a@])"
-    pid label code Cmd.Mono.pp cmd
-
-let show t =
-  Format.asprintf "%a" pp t
-
-let _unchecked reader _ cmd' =
-  let Exit.{pid; cmd; status}, (stdout, stderr) =
-    Exec.in_context cmd' ~f:(fun t -> reader t) in
-  {pid; cmd; status; stdout; stderr}
+let _unchecked reader post cmd' =
+  let ex, streams = Exec.in_context cmd' ~f:(fun t -> reader t) in
+  ex, post streams
 
 let _res reader post cmd =
-  let t = _unchecked reader () cmd in
-  Result.map (fun _ -> post t) (Exit.check (get_exit t))
+  let ex, stream = _unchecked reader post cmd in
+  Result.map (fun _ -> stream) (Exit.check ex)
 
 let _exn reader post cmd =
   Exit.exn (_res reader post cmd)
@@ -48,8 +29,8 @@ module Make(M : S)  = struct
     cmd |> pipe_out |> pipe_err
     |> f Core.(fun t -> M.reader (stdout t), M.reader (stderr t)) Fun.id
 
-  let unchecked cmd = _out_helper _unchecked cmd
   let res cmd = _out_helper _res cmd
+  let unchecked cmd = _out_helper _unchecked cmd
   let exn cmd = _out_helper _exn cmd
   let err_unchecked cmd = _err_helper _unchecked cmd
   let err_res cmd = _err_helper _res cmd
@@ -71,6 +52,8 @@ module Lines = Make(struct
 
 let _neither t = Core.(Out.conv t.stdout, Out.conv t.stderr)
 
-let unchecked cmd = _unchecked _neither () cmd
+let unchecked cmd =
+  let ex, () = _unchecked _neither (fun _ -> ()) cmd in
+  ex
 let res cmd = _res _neither (fun _ -> ()) cmd
 let exn cmd = _exn _neither (fun _ -> ()) cmd

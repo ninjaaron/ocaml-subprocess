@@ -1,4 +1,6 @@
 module Core = Core
+module Cmd = Cmd
+
 include module type of Core
 
 val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
@@ -48,7 +50,7 @@ module Results : sig
     ('a, 'b) result ->
     ('a -> ('c, 'b) result) ->
     ('c, 'b) result
-  val (let|) : 
+  val (let&) : 
     ('stdin, 'stderr, 'stdout) Cmd.t ->
     (('stdin, 'stderr, 'stdout) t -> ('a, Exit.t) result) ->
     ('a, Exit.t) result
@@ -62,19 +64,29 @@ module Unchecked : sig
     Exit.t * 'a
   val run :
     ('stdin, 'stdout, 'stderr) Cmd.t ->
-    ('stdout, 'stderr) Run.t
+    Exit.t
   val read :
     ('stdin, stdout, 'stderr) Cmd.t ->
-    (string, 'stderr) Run.t
+    Exit.t * string
   val lines :
     ('stdin, stdout, 'stderr) Cmd.t ->
-    (string list, 'stderr) Run.t
+    Exit.t * string list
   val read_err :
     ('stdin, 'stdout, stderr) Cmd.t ->
-    ('stdout, string) Run.t
+    Exit.t * string
   val lines_err :
     ('stdin, 'stdout, stderr) Cmd.t ->
-    ('stdout, string list) Run.t
+    Exit.t * string list
+  val fold :
+    ('stdin, stdout, 'stderr) Cmd.t ->
+    f:('acc -> string -> 'acc) ->
+    init:'acc ->
+    Exit.t * 'acc
+  val fold_err :
+    ('stdin, 'stdout, stderr) Cmd.t ->
+    f:('acc -> string -> 'acc) ->
+    init:'acc ->
+    Exit.t * 'acc
 
   include module type of Core
 end

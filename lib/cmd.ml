@@ -79,8 +79,7 @@ module Mono = struct
 
   let pp out t =
     let {args; stdin; stdout; stderr} = Lazy.force t in
-    let open Format in
-    fprintf out "@[%a@]%a"
+    Format.fprintf out "@[%a@]%a"
       pp_args args pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
 end
 

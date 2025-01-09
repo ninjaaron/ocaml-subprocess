@@ -1,3 +1,5 @@
-(test
- (name subprocess)
- (libraries unix))
+(library
+ (name test)
+ (libraries subprocess)
+ (inline_tests)
+ (preprocess (pps ppx_expect)))

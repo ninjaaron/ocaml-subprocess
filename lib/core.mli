@@ -14,8 +14,7 @@
     cases. Their main function is to provide type-level information
     about the streams. *)
 
-include module type of Io
-module Cmd = Cmd
+include module type of Io.Types
 
 module In : sig
   type _ t =
