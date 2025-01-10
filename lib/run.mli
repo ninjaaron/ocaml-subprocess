@@ -12,11 +12,11 @@ module Read : sig
     -> (string, Exit.t) result
   val err_exn : ('stdin, 'stdout, stderr) Cmd.t -> string
   val both_unchecked : ('stdin, stdout, stderr) Cmd.t
-    -> Exit.t * (string * string)
+    -> Exit.t * string
   val both_res : ('stdin, stdout, stderr) Cmd.t
-    -> (string * string, Exit.t) result
+    -> (string, Exit.t) result
   val both_exn : ('stdin, stdout, stderr) Cmd.t
-    -> string * string
+    -> string
 end
 
 module Lines : sig
@@ -31,11 +31,11 @@ module Lines : sig
     -> (string list, Exit.t) result
   val err_exn : ('stdin, 'stdout, stderr) Cmd.t -> string list
   val both_unchecked : ('stdin, stdout, stderr) Cmd.t
-    -> Exit.t * (string list * string list)
+    -> Exit.t * string list
   val both_res : ('stdin, stdout, stderr) Cmd.t
-    -> (string list * string list, Exit.t) result
+    -> (string list, Exit.t) result
   val both_exn : ('stdin, stdout, stderr) Cmd.t
-    -> string list * string list
+    -> string list
 end
 
 val unchecked : ('stdin, 'stdout, 'stderr) Cmd.t

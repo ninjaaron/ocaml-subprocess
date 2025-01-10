@@ -9,5 +9,11 @@ let exn cmd ~f =
   
 let exit_t cmd ~f = _bind_helper Exit.check cmd f
 
-let string_error cmd ~f =
-  _bind_helper (fun t -> Exit.string_error (Exit.check t)) cmd f
+let exit_t_both cmd ~f =
+  let proc, output = Exec.shared_context ~f cmd in
+  Result.bind (Exit.check proc) (fun _ -> output)
+
+let exn_both cmd ~f =
+  let proc, output = Exec.shared_context ~f cmd in
+  Result.map (fun _ -> output) (Exit.check proc) 
+  |> Exit.exn

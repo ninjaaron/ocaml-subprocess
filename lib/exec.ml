@@ -41,12 +41,12 @@ let shared_pipe (Cmd.{args; stdin; _} as cmd) =
     let pid, status = Unix.waitpid ~mode pid in
     out.closer (); err.closer ();
     Exit.{pid; status; cmd = (Cmd.to_mono cmd)} in
-  List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
+  List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl ];
   { pid
-  ; cmd={cmd with stdout=Pipe; stderr=Pipe}
+  ; cmd={cmd with stdout=Pipe; stderr=Stdout}
   ; stdin = in'.handle
   ; stdout = out.handle
-  ; stderr = err.handle
+  ; stderr = Stdout
   ; close
   }
 
