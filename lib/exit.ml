@@ -1,5 +1,3 @@
-open Printf
-
 let unify_status = function
   | Unix.WEXITED i -> "exited", i
   | Unix.WSIGNALED i -> "signaled", i
@@ -7,7 +5,7 @@ let unify_status = function
 
 let status_to_string status =
   let s, i = unify_status status in
-  sprintf "%s %d" s i
+  Printf.sprintf "%s %d" s i
 
 type t =
   { pid : int
@@ -28,7 +26,13 @@ let check t =
   | Unix.WEXITED 0 -> Ok t
   | _ -> Error t
 
+let res (t, x) =
+  match t.status with
+  | Unix.WEXITED 0 -> Ok x
+  | _ -> Error t
+
 let string_error res = Result.map_error show  res
-let exn = function
-  | Ok a -> a
-  | Error t -> raise (Io.Subprocess_error (show t))
+let exn (t, x) = 
+  match t.status with
+  | Unix.WEXITED 0 -> x
+  | _ -> raise (Io.Subprocess_error (show t))
