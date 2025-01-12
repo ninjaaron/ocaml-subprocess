@@ -43,9 +43,9 @@ module type S = sig
 end
 
 let run_f _ = ()
-let read_f reader t = In_channel.input_all (reader t)
-let lines_f reader t = In_channel.input_lines (reader t)
-let fold_f reader f init t = In_channel.fold_lines f init (reader t)
+let read_f stream t = In_channel.input_all (stream t)
+let lines_f stream t = In_channel.input_lines (stream t)
+let fold_f stream f init t = In_channel.fold_lines f init (stream t)
 
 module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
   include M
