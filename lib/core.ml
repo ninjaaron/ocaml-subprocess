@@ -1,6 +1,43 @@
 module Unix = UnixLabels
-module Cmd = Cmd
 include Io
+
+module Exit = struct
+  let unify_status = function
+    | Unix.WEXITED i -> "exited", i
+    | Unix.WSIGNALED i -> "signaled", i
+    | Unix.WSTOPPED i -> "stopped", i
+
+  type t =
+    { pid : int
+    ; cmd : Cmd.Mono.t
+    ; status : Unix.process_status
+    } 
+
+  let status_int t =
+    match t.status with
+    | Unix.WEXITED i -> i
+    | Unix.WSIGNALED i -> i
+    | Unix.WSTOPPED i -> i
+
+  let pp out {pid; cmd; status} =
+    let label, code = unify_status status in
+    Format.fprintf out "(@[%s: %d,@ pid: %i,@ %a@])"
+      label code pid Cmd.Mono.pp cmd
+
+  let show t =
+    Format.asprintf "%a" pp t
+
+  let res (t, x) =
+    match t.status with
+    | Unix.WEXITED 0 -> Ok x
+    | _ -> Error t
+
+  let string_error res = Result.map_error show  res
+  let exn (t, x) = 
+    match t.status with
+    | Unix.WEXITED 0 -> x
+    | _ -> raise (Io.Subprocess_error (show t))
+end
 
 module In = struct
   type _ t =
@@ -59,9 +96,6 @@ let poll t =
   match Unix.waitpid ~mode:[ Unix.WNOHANG ] t.pid with
   | 0, _ -> None
   | _, status -> Some status
-
-let check t =
-  Exit.check (t.close ())
 
 let cmd args =
   if List.is_empty args then failwith "argument array must not be empty";

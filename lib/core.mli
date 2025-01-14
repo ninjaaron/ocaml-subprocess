@@ -16,6 +16,22 @@
 
 include module type of Io.Types
 
+module Exit : sig
+  type t =
+    { pid : int
+    ; cmd : Cmd.Mono.t
+    ; status : Unix.process_status
+    }
+
+  val pp : Format.formatter -> t -> unit
+  [@@ocaml.toplevel_printer]
+  val show : t -> string
+  val res : t * 'a -> ('a, t) result
+  val exn : t * 'a -> 'a
+  val string_error : ('a, t) result -> ('a, string) result
+  val status_int : t -> int
+end
+
 module In : sig
   type _ t =
     | Stdin : stdin t
@@ -65,8 +81,6 @@ val wait : ?mode:Unix.wait_flag list
   -> int * Unix.process_status
 
 val poll : ('stdin, 'stdout, 'stderr) t -> Unix.process_status option
-
-val check : ('stdin, 'stdout, 'stderr) t -> (Exit.t, Exit.t) result
 
 val cmd : string list -> (stdin, stdout, stderr) Cmd.t
 

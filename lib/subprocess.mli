@@ -34,9 +34,6 @@ val fold_joined :
 val (let&) : ('stdin, 'stdout, 'stderr) Cmd.t ->
   (('stdin, 'stdout, 'stderr) t -> 'a) -> 'a
   
-
-module Exit = Exit
-
 module Results : sig
   val exec : 
     ('stdin, 'stdout, 'stderr) Cmd.t ->
@@ -140,4 +137,3 @@ module Unchecked : sig
 end
 
 module Exec = Exec
-

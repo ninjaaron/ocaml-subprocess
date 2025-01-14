@@ -1,4 +1,3 @@
-module Exit = Exit
 module Core = Core
 module Cmd = Cmd
 include Core
