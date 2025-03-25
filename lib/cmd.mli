@@ -26,6 +26,7 @@ type ('stdin, 'stdout, 'stderr) t =
   ; stdin : 'stdin In.t
   ; stdout : 'stdout Out.t
   ; stderr : 'stderr Out.t
+  ; env : string array
   }
 
 module Mono : sig

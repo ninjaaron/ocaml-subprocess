@@ -17,10 +17,15 @@
 include module type of Io.Types
 
 module Exit : sig
+  type status = Unix.process_status =
+    | WEXITED of int
+    | WSIGNALED of int
+    | WSTOPPED of int
+
   type t =
     { pid : int
     ; cmd : Cmd.Mono.t
-    ; status : Unix.process_status
+    ; status : status
     }
 
   val pp : Format.formatter -> t -> unit
@@ -78,11 +83,11 @@ val stderr : ('stdin, 'stdout, pipe) t -> in_channel
 
 val wait : ?mode:Unix.wait_flag list
   -> ('stdin, 'stdout, 'stderr) t
-  -> int * Unix.process_status
+  -> int * Exit.status
 
-val poll : ('stdin, 'stdout, 'stderr) t -> Unix.process_status option
+val poll : ('stdin, 'stdout, 'stderr) t -> Exit.status option
 
-val cmd : string list -> (stdin, stdout, stderr) Cmd.t
+val cmd : ?env:string list -> string list -> (stdin, stdout, stderr) Cmd.t
 
 val set_in : 'stdin Cmd.In.t
   -> (stdin, 'stdout, 'stderr) Cmd.t
@@ -121,3 +126,6 @@ val devnull_out : ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, devnull, 'stderr) Cmd.t
 val devnull_err : ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, devnull) Cmd.t
+val env : string list
+  -> ('stdin, 'stdout, 'stderr) Cmd.t
+  -> ('stdin, 'stdout, 'stderr) Cmd.t

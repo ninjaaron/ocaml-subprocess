@@ -1,23 +1,30 @@
 module Unix = UnixLabels
 include Io
 
+
+
 module Exit = struct
+  type status = Unix.process_status =
+    | WEXITED of int
+    | WSIGNALED of int
+    | WSTOPPED of int
+                  
   let unify_status = function
-    | Unix.WEXITED i -> "exited", i
-    | Unix.WSIGNALED i -> "signaled", i
-    | Unix.WSTOPPED i -> "stopped", i
+    | WEXITED i -> "exited", i
+    | WSIGNALED i -> "signaled", i
+    | WSTOPPED i -> "stopped", i
 
   type t =
     { pid : int
     ; cmd : Cmd.Mono.t
-    ; status : Unix.process_status
+    ; status : status
     } 
 
   let status_int t =
     match t.status with
-    | Unix.WEXITED i -> i
-    | Unix.WSIGNALED i -> i
-    | Unix.WSTOPPED i -> i
+    | WEXITED i -> i
+    | WSIGNALED i -> i
+    | WSTOPPED i -> i
 
   let pp out {pid; cmd; status} =
     let label, code = unify_status status in
@@ -29,13 +36,13 @@ module Exit = struct
 
   let res (t, x) =
     match t.status with
-    | Unix.WEXITED 0 -> Ok x
+    | WEXITED 0 -> Ok x
     | _ -> Error t
 
   let string_error res = Result.map_error show  res
   let exn (t, x) = 
     match t.status with
-    | Unix.WEXITED 0 -> x
+    | WEXITED 0 -> x
     | _ -> raise (Io.Subprocess_error (show t))
 end
 
@@ -97,12 +104,13 @@ let poll t =
   | 0, _ -> None
   | _, status -> Some status
 
-let cmd args =
+let cmd ?(env=[]) args =
   if List.is_empty args then failwith "argument array must not be empty";
   Cmd.{ args=Array.of_list args
       ; stdin=In.Stdin
       ; stdout=Out.Stdout
       ; stderr=Out.Stderr
+      ; env=Array.of_list env
       }
 
 let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
@@ -119,3 +127,4 @@ let file_out s cmd = set_out (File s) cmd
 let file_err s cmd = set_err (File s) cmd
 let devnull_out cmd = set_out Devnull cmd
 let devnull_err cmd = set_err Devnull cmd
+let env env_list cmd = Cmd.{cmd with env=Array.of_list env_list}

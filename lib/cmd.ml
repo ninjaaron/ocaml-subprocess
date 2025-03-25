@@ -47,11 +47,22 @@ let pp_args out args =
        (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
     args
 
+let pp_env out = function
+  | [||] -> ()
+  | env ->
+    let open Format in
+    fprintf out "env:[@[%a@]]"
+    (pp_print_array ~pp_sep:(fun out () -> fprintf out ",@ ")
+       (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
+    env
+      
+
 type ('stdin, 'stdout, 'stderr) t =
   { args : string array
   ; stdin : 'stdin In.t
   ; stdout: 'stdout Out.t
   ; stderr: 'stderr Out.t
+  ; env: string array
   }
 
 module Mono = struct
@@ -60,6 +71,7 @@ module Mono = struct
     ; stdin : Io.Mono.t
     ; stdout : Io.Mono.t
     ; stderr : Io.Mono.t 
+    ; env : string array
     }
   type t = inner lazy_t
 
@@ -78,16 +90,26 @@ module Mono = struct
               streams')
 
   let pp out t =
-    let {args; stdin; stdout; stderr} = Lazy.force t in
-    Format.fprintf out "@[%a@]%a"
-      pp_args args pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
+    let {args; stdin; stdout; stderr; env} = Lazy.force t in
+    match env with
+    | [||] ->
+      Format.fprintf out "@[%a@]%a"
+        pp_args args
+        pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
+    | _ ->
+      Format.fprintf out "@[%a@]%a@ @[%a@]"
+        pp_args args
+        pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
+        pp_env env
+      
 end
 
-let to_mono {args; stdin; stdout; stderr} =
+let to_mono {args; stdin; stdout; stderr; env} =
   lazy Mono.{ args
             ; stdin = In.to_mono stdin
             ; stdout = Out.to_mono stdout
             ; stderr = Out.to_mono stderr
+            ; env = env
             }
 
 let pp out cmd =

@@ -62,13 +62,18 @@ module Stream = struct
       }
 end
 
-let _create ~stdout ~stdin ~stderr args =
-  Unix.create_process ~prog:args.(0) ~args ~stdout ~stdin ~stderr
+let _create ~stdout ~stdin ~stderr ~env args =
+  Unix.create_process_env ~prog:args.(0) ~env ~args ~stdout ~stdin ~stderr
 
-let exec (Cmd.{args; stdin; stdout; stderr} as cmd) =
+let exec (Cmd.{args; stdin; stdout; stderr; env} as cmd) =
   let in', out, err =
     Stream.(prep_in stdin, prep_out stdout, prep_out stderr) in
-  let pid = _create ~stdin:in'.send ~stdout:out.send ~stderr:err.send args in
+  let pid = _create
+      ~stdin:in'.send
+      ~stdout:out.send
+      ~stderr:err.send
+      ~env
+      args in
   let close ?(mode = []) () =
     in'.closer ();
     let pid, status = Unix.waitpid ~mode pid in
@@ -91,11 +96,16 @@ let in_context cmd ~f =
     let _ = t.close () in
     raise e
 
-let shared_pipe (Cmd.{args; stdin; _} as cmd) =
+let shared_pipe (Cmd.{args; stdin; env; _} as cmd) =
   let in', out, err =
     let out = Stream.prep_out Pipe in
     Stream.prep_in stdin, out, out in
-  let pid = _create ~stdin:in'.send ~stdout:out.send ~stderr:err.send args in
+  let pid = _create
+      ~stdin:in'.send
+      ~stdout:out.send
+      ~stderr:err.send
+      ~env
+      args in
   let close ?(mode = []) () =
     in'.closer ();
     let pid, status = Unix.waitpid ~mode pid in
