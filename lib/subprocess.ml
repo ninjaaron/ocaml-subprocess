@@ -8,7 +8,7 @@ include Functor.Make(struct
     let exec_joined cmd ~f = Exit.exn (Exec.shared_context cmd ~f)
   end)
 
-let (let&) cmd f =  cmd ~f
+let (let&) cmd f = exec cmd ~f
 
 module Results = struct
   include Functor.Make(struct
