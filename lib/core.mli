@@ -87,7 +87,10 @@ val wait : ?mode:Unix.wait_flag list
 
 val poll : ('stdin, 'stdout, 'stderr) t -> Exit.status option
 
-val cmd : ?env:string list -> string list -> (stdin, stdout, stderr) Cmd.t
+val cmd : ?env:string list
+  -> ?block:bool
+  -> string list
+  -> (stdin, stdout, stderr) Cmd.t
 
 val set_in : 'stdin Cmd.In.t
   -> (stdin, 'stdout, 'stderr) Cmd.t
@@ -128,4 +131,6 @@ val devnull_err : ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, devnull) Cmd.t
 val env : string list
   -> ('stdin, 'stdout, 'stderr) Cmd.t
+  -> ('stdin, 'stdout, 'stderr) Cmd.t
+val no_block : ('stdin, 'stdout, 'stderr) Cmd.t
   -> ('stdin, 'stdout, 'stderr) Cmd.t

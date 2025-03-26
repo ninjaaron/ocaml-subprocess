@@ -60,9 +60,10 @@ let pp_env out = function
 type ('stdin, 'stdout, 'stderr) t =
   { args : string array
   ; stdin : 'stdin In.t
-  ; stdout: 'stdout Out.t
-  ; stderr: 'stderr Out.t
-  ; env: string array
+  ; stdout : 'stdout Out.t
+  ; stderr : 'stderr Out.t
+  ; env : string array
+  ; block : bool
   }
 
 module Mono = struct
@@ -72,6 +73,7 @@ module Mono = struct
     ; stdout : Io.Mono.t
     ; stderr : Io.Mono.t 
     ; env : string array
+    ; block : bool
     }
   type t = inner lazy_t
 
@@ -90,26 +92,25 @@ module Mono = struct
               streams')
 
   let pp out t =
-    let {args; stdin; stdout; stderr; env} = Lazy.force t in
-    match env with
-    | [||] ->
-      Format.fprintf out "@[%a@]%a"
-        pp_args args
-        pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
-    | _ ->
-      Format.fprintf out "@[%a@]%a@ @[%a@]"
-        pp_args args
-        pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr]
-        pp_env env
+    let {args; stdin; stdout; stderr; env; block} = Lazy.force t in
+    Format.fprintf out "@[%a@]%a"
+      pp_args args
+      pp_io ["stdin", stdin; "stdout", stdout; "stderr", stderr];
+    (match env with
+     | [||] -> ()
+     | _ ->
+      Format.fprintf out "@ @[%a@]" pp_env env);
+    if not block then Format.fprintf out "@ non-blocking"
       
 end
 
-let to_mono {args; stdin; stdout; stderr; env} =
+let to_mono {args; stdin; stdout; stderr; env; block} =
   lazy Mono.{ args
             ; stdin = In.to_mono stdin
             ; stdout = Out.to_mono stdout
             ; stderr = Out.to_mono stderr
-            ; env = env
+            ; env
+            ; block
             }
 
 let pp out cmd =

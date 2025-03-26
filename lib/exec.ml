@@ -25,7 +25,8 @@ module Stream = struct
     Unix.set_close_on_exec fd;
     fd
 
-  let prep_out (type a) : a Cmd.Out.t -> a Out.t bookkeeping = function
+  let prep_out (type a) : block:bool -> a Cmd.Out.t -> a Out.t bookkeeping =
+    fun ~block -> function
     | Stdout -> prep_fd Unix.stdout Out.Stdout
     | Stderr -> prep_fd Unix.stderr Out.Stderr
     | Devnull -> prep_fd (get_devnull ()) Out.Devnull
@@ -37,6 +38,7 @@ module Stream = struct
       prep_fd fd (Out.File s)
     | Pipe ->
       let r, w = Unix.pipe ~cloexec:true () in
+      if not block then Unix.set_nonblock r;
       let ic = Unix.in_channel_of_descr r in
       { handle = Out.Pipe ic
       ; send = w
@@ -44,7 +46,8 @@ module Stream = struct
       ; closer = fun () -> In_channel.close ic
       }
 
-  let prep_in (type a) : a Cmd.In.t -> a In.t bookkeeping = function
+  let prep_in (type a) : block:bool -> a Cmd.In.t -> a In.t bookkeeping =
+    fun ~block -> function
     | Stdin -> prep_fd Unix.stdin In.Stdin
     | Channel ic ->
       let fd = channel_helper Unix.descr_of_in_channel ic in
@@ -54,6 +57,7 @@ module Stream = struct
       prep_fd fd (In.File s)
     | Pipe ->
       let r, w = Unix.pipe ~cloexec:true () in
+      if not block then Unix.set_nonblock w;
       let oc = Unix.out_channel_of_descr w in
       { handle = In.Pipe oc
       ; send = r
@@ -65,9 +69,12 @@ end
 let _create ~stdout ~stdin ~stderr ~env args =
   Unix.create_process_env ~prog:args.(0) ~env ~args ~stdout ~stdin ~stderr
 
-let exec (Cmd.{args; stdin; stdout; stderr; env} as cmd) =
+let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
   let in', out, err =
-    Stream.(prep_in stdin, prep_out stdout, prep_out stderr) in
+    Stream.( prep_in ~block stdin
+           , prep_out ~block stdout
+           , prep_out ~block stderr
+           ) in
   let pid = _create
       ~stdin:in'.send
       ~stdout:out.send
@@ -96,10 +103,10 @@ let in_context cmd ~f =
     let _ = t.close () in
     raise e
 
-let shared_pipe (Cmd.{args; stdin; env; _} as cmd) =
+let shared_pipe (Cmd.{args; stdin; env; block; _} as cmd) =
   let in', out, err =
-    let out = Stream.prep_out Pipe in
-    Stream.prep_in stdin, out, out in
+    let out = Stream.prep_out ~block Pipe in
+    Stream.prep_in ~block stdin, out, out in
   let pid = _create
       ~stdin:in'.send
       ~stdout:out.send

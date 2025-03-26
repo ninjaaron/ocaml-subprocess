@@ -1,8 +1,6 @@
 module Unix = UnixLabels
 include Io
 
-
-
 module Exit = struct
   type status = Unix.process_status =
     | WEXITED of int
@@ -104,13 +102,14 @@ let poll t =
   | 0, _ -> None
   | _, status -> Some status
 
-let cmd ?(env=[]) args =
+let cmd ?(env=[]) ?(block=true) args =
   if List.is_empty args then failwith "argument array must not be empty";
   Cmd.{ args=Array.of_list args
       ; stdin=In.Stdin
       ; stdout=Out.Stdout
       ; stderr=Out.Stderr
       ; env=Array.of_list env
+      ; block=block
       }
 
 let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
@@ -128,3 +127,4 @@ let file_err s cmd = set_err (File s) cmd
 let devnull_out cmd = set_out Devnull cmd
 let devnull_err cmd = set_err Devnull cmd
 let env env_list cmd = Cmd.{cmd with env=Array.of_list env_list}
+let no_block cmd = Cmd.{cmd with block=false}
