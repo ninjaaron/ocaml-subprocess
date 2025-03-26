@@ -41,7 +41,8 @@ module type S = sig
     f:('acc -> string -> 'acc) ->
     init:'acc ->
     'acc t
-  val fold_both : ('stdin, stdout, stderr) Cmd.t ->
+  val fold_both : ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
     f:('acc -> (string, string) result -> 'acc) ->
     init:'acc ->
     'acc t
@@ -102,15 +103,17 @@ module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
     let cmd' = pipe_out @@ pipe_err cmd in
     exec cmd' ~f:(fun t ->
         let out, err = read_both_f t in
-        String.(split_on_char ~sep:'\n' out, split_on_char ~sep:'\n' err))
+        String.(
+          split_on_char ~sep:'\n' (String.trim out),
+          split_on_char ~sep:'\n' (String.trim err)))
 
-  let fold_both cmd ~f ~init =
+  let fold_both ?(sleep=0.) cmd ~f ~init =
     let cmd' = no_block @@ pipe_out @@ pipe_err cmd in
     exec cmd' ~f:(fun t ->
         let rec go ?(finished=false) acc stream other =
           match finished, In_channel.input_line stream with
           | exception Sys_blocked_io ->
-            Unix.sleepf 0.01;
+            if sleep > 0. then Unix.sleepf sleep;
             if finished
             then go ~finished acc stream other
             else go acc other stream
