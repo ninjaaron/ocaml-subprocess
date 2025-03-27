@@ -46,6 +46,13 @@ module type S = sig
     f:('acc -> (string, string) result -> 'acc) ->
     init:'acc ->
     'acc t
+  val fold_both2 : ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
+    out:('out_acc -> string -> 'out_acc) ->
+    out_init:'out_acc ->
+    err:('err_acc -> string -> 'err_acc) ->
+    err_init:'err_acc -> ('out_acc * 'err_acc) t
+
 end
 
 let run_f _ = ()
@@ -100,30 +107,39 @@ module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
   let read_both cmd = exec ~f:read_both_f @@ pipe_out @@ pipe_err cmd
 
   let lines_both cmd =
+    let f t =
+      let out, err = read_both_f t in
+      String.(
+        split_on_char ~sep:'\n' (trim out),
+        split_on_char ~sep:'\n' (trim err)) in
     let cmd' = pipe_out @@ pipe_err cmd in
-    exec cmd' ~f:(fun t ->
-        let out, err = read_both_f t in
-        String.(
-          split_on_char ~sep:'\n' (String.trim out),
-          split_on_char ~sep:'\n' (String.trim err)))
+    exec cmd' ~f
 
   let fold_both ?(sleep=0.) cmd ~f ~init =
+    let f t =
+      let get_res stream line =
+        if stream == (stdout t) then (Ok line) else (Error line) in
+      let rec go acc stream other =
+        match In_channel.input_line stream with
+        | exception Sys_blocked_io ->
+          if sleep > 0. then Unix.sleepf sleep;
+          go acc other stream
+        | None -> go_one acc other
+        | Some line -> go (f acc (get_res stream line)) other stream
+      and go_one acc stream =
+        match In_channel.input_line stream with
+        | exception Sys_blocked_io -> Unix.sleepf sleep; go_one acc stream
+        | None -> acc
+        | Some line -> go_one (f acc (get_res stream line)) stream in
+      go init (stdout t) (stderr t) in
     let cmd' = no_block @@ pipe_out @@ pipe_err cmd in
-    exec cmd' ~f:(fun t ->
-        let rec go ?(finished=false) acc stream other =
-          match finished, In_channel.input_line stream with
-          | exception Sys_blocked_io ->
-            if sleep > 0. then Unix.sleepf sleep;
-            if finished
-            then go ~finished acc stream other
-            else go acc other stream
-          | true, None -> acc
-          | false, None -> go ~finished:true acc other stream
-          | _, Some line ->
-            let acc' = if stream == (stdout t)
-              then f acc (Ok line) else f acc (Error line) in
-            if finished
-            then go ~finished acc' stream other
-            else go acc' other stream in
-        go init (stdout t) (stderr t))
+    exec cmd' ~f
+
+
+  let fold_both2 ?sleep cmd ~out ~out_init ~err ~err_init =
+    let f (oacc, eacc) res =
+      match res with
+      | Ok line -> out oacc line, eacc
+      | Error line -> oacc, err eacc line in
+    fold_both ?sleep cmd ~init:(out_init, err_init) ~f
 end
