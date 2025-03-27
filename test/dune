@@ -2,4 +2,5 @@
  (name test)
  (libraries subprocess)
  (inline_tests)
- (preprocess (pps ppx_expect)))
+ (preprocess
+  (pps ppx_expect)))
