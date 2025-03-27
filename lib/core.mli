@@ -14,7 +14,55 @@
     cases. Their main function is to provide type-level information
     about the streams. *)
 
-include module type of Io.Types
+type stdin = Stdin
+type stdout = Stdout
+type stderr = Stderr
+type channel = Channel
+type devnull = Devnull
+type file = File of string
+type pipe = Pipe
+
+exception Subprocess_error of string
+
+module Cmd : sig
+  module In : sig
+    type _ t =
+        Stdin : stdin t
+      | Channel : in_channel -> channel t
+      | File : string -> file t
+      | Pipe : pipe t
+    val show : 'a t -> string
+  end
+
+  module Out : sig
+    type _ t =
+        Stdout : stdout t
+      | Stderr : stderr t
+      | Channel : out_channel -> channel t
+      | File : string -> file t
+      | Devnull : devnull t
+      | Pipe : pipe t
+    val show : 'a t -> string
+  end
+
+  type ('stdin, 'stdout, 'stderr) t =
+    { args : string array
+    ; stdin : 'stdin In.t
+    ; stdout : 'stdout Out.t
+    ; stderr : 'stderr Out.t
+    ; env : string array
+    ; block : bool
+    }
+
+  type poly = Poly : ('a, 'b, 'c) t -> poly
+
+  val arg_to_repr : string -> string
+  val pp_args : Format.formatter -> string array -> unit
+  val pp : Format.formatter -> ('a, 'b, 'c) t -> unit
+  [@@ocaml.toplevel_printer]
+  val show : ('a, 'b, 'c) t -> string
+
+end
 
 module Exit : sig
   type status = Unix.process_status =
@@ -24,7 +72,7 @@ module Exit : sig
 
   type t =
     { pid : int
-    ; cmd : Cmd.Mono.t
+    ; cmd : Cmd.poly
     ; status : status
     }
 

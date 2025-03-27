@@ -1,5 +1,118 @@
 module Unix = UnixLabels
-include Io
+
+type stdin = Stdin
+type stdout = Stdout
+type stderr = Stderr
+type channel = Channel
+type devnull = Devnull
+type file = File of string
+type pipe = Pipe
+
+exception Subprocess_error of string
+
+let () =
+  Printexc.register_printer @@ function
+  | Subprocess_error s ->
+    Some (Printf.sprintf "Subprocess_error%s" s)
+  | _ -> None
+
+module Cmd = struct
+  module In = struct
+    type _ t =
+      | Stdin : stdin t
+      | Channel : In_channel.t -> channel t
+      | File : string -> file t
+      | Pipe : pipe t
+
+    let show : type a. a t -> string = function
+      | Stdin -> "stdin"
+      | Channel _ -> "channel"
+      | File s -> Printf.sprintf {|file %s"|} (String.escaped s)
+      | Pipe -> "pipe"
+  end
+
+  module Out = struct
+    type _ t =
+      | Stdout : stdout t
+      | Stderr : stderr t
+      | Channel : Out_channel.t -> channel t
+      | File : string -> file t
+      | Devnull : devnull t
+      | Pipe : pipe t
+
+    let show (type a) : a t -> string = function
+      | Stdout -> "stdout"
+      | Stderr -> "stderr"
+      | Channel _ -> "channel"
+      | File s -> Printf.sprintf {|file %s"|} (String.escaped s)
+      | Devnull -> "devnull"
+      | Pipe -> "pipe"
+  end
+
+  let arg_to_repr arg =
+    let esc = String.escaped arg in
+    if arg = esc && not (String.contains arg ' ')
+    then arg else Printf.sprintf {|"%s"|} esc
+
+  let pp_args out args =
+    let open Format in
+    fprintf out "`%a`" 
+      (pp_print_array ~pp_sep:(fun out () -> fprintf out "@ ")
+         (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
+      args
+
+  let pp_env out = function
+    | [||] -> ()
+    | env ->
+      let open Format in
+      fprintf out "env:[@[%a@]]"
+        (pp_print_array ~pp_sep:(fun out () -> fprintf out ",@ ")
+           (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
+        env
+
+
+  module T = struct
+    type ('stdin, 'stdout, 'stderr) t =
+      { args : string array
+      ; stdin : 'stdin In.t
+      ; stdout : 'stdout Out.t
+      ; stderr : 'stderr Out.t
+      ; env : string array
+      ; block : bool
+      }
+  end
+  include T
+
+  let pp_io out streams =
+    let streams' = ListLabels.filter_map streams
+        ~f:(fun (default, s) ->
+            if s = default then None else Some (default ^ ": " ^ s)) in
+    if List.is_empty streams' then ()
+    else Format.fprintf out ",@ ";
+    Format.(pp_print_list
+              ~pp_sep:(fun out () -> Format.fprintf out ",@ ")
+              Format.pp_print_string
+              out
+              streams')
+
+  let pp out t =
+    let {args; stdin; stdout; stderr; env; block} = t in
+    Format.fprintf out "@[%a@]%a"
+      pp_args args
+      pp_io [ "stdin", In.show stdin
+            ; "stdout", Out.show stdout
+            ; "stderr", Out.show stderr];
+    (match env with
+     | [||] -> ()
+     | _ ->
+       Format.fprintf out "@ @[%a@]" pp_env env);
+    if not block then Format.fprintf out "@ non-blocking"
+
+  let show cmd =
+    Format.asprintf "%a" pp cmd
+
+  type poly = Poly : ('a, 'b, 'c) T.t -> poly
+end
 
 module Exit = struct
   type status = Unix.process_status =
@@ -14,7 +127,7 @@ module Exit = struct
 
   type t =
     { pid : int
-    ; cmd : Cmd.Mono.t
+    ; cmd : Cmd.poly
     ; status : status
     } 
 
@@ -24,10 +137,10 @@ module Exit = struct
     | WSIGNALED i -> i
     | WSTOPPED i -> i
 
-  let pp out {pid; cmd; status} =
+  let pp out {pid; cmd=Cmd.Poly cmd; status} =
     let label, code = unify_status status in
     Format.fprintf out "(@[%s: %d,@ pid: %i,@ %a@])"
-      label code pid Cmd.Mono.pp cmd
+      label code pid Cmd.pp cmd
 
   let show t =
     Format.asprintf "%a" pp t
@@ -41,7 +154,7 @@ module Exit = struct
   let exn (t, x) = 
     match t.status with
     | WEXITED 0 -> x
-    | _ -> raise (Io.Subprocess_error (show t))
+    | _ -> raise (Subprocess_error (show t))
 end
 
 module In = struct
@@ -87,7 +200,7 @@ type ('stdin, 'stdout, 'stderr) t =
 
 let pp out {pid; cmd; _} =
   Format.fprintf out "process(@[pid: %d,@ %a@])"
-    pid Cmd.Mono.pp @@ Cmd.to_mono cmd
+    pid Cmd.pp cmd
 
 let show t =
   Format.asprintf "%a" pp t

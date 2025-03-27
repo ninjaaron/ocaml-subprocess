@@ -1,5 +1,4 @@
 module Core = Core
-module Cmd = Cmd
 include Core
 
 include Functor.Make(struct

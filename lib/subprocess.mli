@@ -1,5 +1,4 @@
 module Core = Core
-module Cmd = Cmd
 
 include module type of Core
 include Functor.S with type 'a t := 'a
