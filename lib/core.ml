@@ -6,6 +6,7 @@ type stderr = Stderr
 type channel = Channel
 type devnull = Devnull
 type file = File of string
+type append = Append of string
 type pipe = Pipe
 
 exception Subprocess_error of string
@@ -27,7 +28,7 @@ module Cmd = struct
     let show : type a. a t -> string = function
       | Stdin -> "stdin"
       | Channel _ -> "channel"
-      | File s -> Printf.sprintf {|file %s"|} (String.escaped s)
+      | File s -> Printf.sprintf {|file "%s"|} (String.escaped s)
       | Pipe -> "pipe"
   end
 
@@ -37,6 +38,7 @@ module Cmd = struct
       | Stderr : stderr t
       | Channel : Out_channel.t -> channel t
       | File : string -> file t
+      | Append : string -> append t
       | Devnull : devnull t
       | Pipe : pipe t
 
@@ -44,7 +46,8 @@ module Cmd = struct
       | Stdout -> "stdout"
       | Stderr -> "stderr"
       | Channel _ -> "channel"
-      | File s -> Printf.sprintf {|file %s"|} (String.escaped s)
+      | File s -> Printf.sprintf {|file "%s"|} (String.escaped s)
+      | Append s -> Printf.sprintf {|append "%s"|} (String.escaped s)
       | Devnull -> "devnull"
       | Pipe -> "pipe"
   end
@@ -177,6 +180,7 @@ module Out = struct
     | Stderr : stderr t
     | Channel : channel t
     | File : string -> file t
+    | Append : string -> append t
     | Devnull : devnull t
     | Pipe : In_channel.t -> pipe t
 
@@ -185,6 +189,7 @@ module Out = struct
     | Stderr -> Stderr
     | Channel -> Channel
     | File s -> File s
+    | Append s -> Append s
     | Devnull -> Devnull
     | Pipe _ -> Pipe
 end
@@ -237,6 +242,8 @@ let channel_err oc cmd = set_err (Channel oc) cmd
 let file_in s cmd = set_in (File s) cmd
 let file_out s cmd = set_out (File s) cmd
 let file_err s cmd = set_err (File s) cmd
+let append_out s cmd = set_out (Append s) cmd
+let append_err s cmd = set_err (Append s) cmd
 let devnull_out cmd = set_out Devnull cmd
 let devnull_err cmd = set_err Devnull cmd
 let env env_list cmd = Cmd.{cmd with env=Array.of_list env_list}

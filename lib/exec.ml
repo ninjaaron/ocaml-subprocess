@@ -4,7 +4,7 @@ open StdLabels
 
 module Stream = struct
   let get_devnull () =
-    Unix.openfile "/dev/null" ~mode:[Unix.O_WRONLY; Unix.O_CLOEXEC] ~perm:0o000 
+    Unix.openfile "/dev/null" ~mode:[Unix.O_WRONLY] ~perm:0
 
   type 'a bookkeeping =
     { handle: 'a
@@ -13,29 +13,34 @@ module Stream = struct
     ; closer: unit -> unit
     }
 
-  let prep_fd fd handle =
+  let prep_fd_no_close fd handle =
     { handle
-    ; send=fd
-    ; cl=None
+    ; send = fd
+    ; cl = None
     ; closer = Fun.id
     }
 
-  let channel_helper descr_of_channel oc =
-    let fd = descr_of_channel oc in
-    Unix.set_close_on_exec fd;
-    fd
+  let prep_fd_close fd handle =
+    { handle
+    ; send = fd
+    ; cl = Some fd
+    ; closer = Fun.id
+    }
 
   let prep_out (type a) : block:bool -> a Cmd.Out.t -> a Out.t bookkeeping =
     fun ~block -> function
-    | Stdout -> prep_fd Unix.stdout Out.Stdout
-    | Stderr -> prep_fd Unix.stderr Out.Stderr
-    | Devnull -> prep_fd (get_devnull ()) Out.Devnull
+    | Stdout -> prep_fd_no_close Unix.stdout Out.Stdout
+    | Stderr -> prep_fd_no_close Unix.stderr Out.Stderr
+    | Devnull -> prep_fd_close (get_devnull ()) Out.Devnull
     | Channel oc ->
-      let fd = channel_helper Unix.descr_of_out_channel oc in
-      prep_fd fd Out.Channel
+      let fd = Unix.descr_of_out_channel oc in
+      prep_fd_close fd Out.Channel
     | File s ->
-      let fd = channel_helper Unix.descr_of_out_channel (Out_channel.open_text s) in
-      prep_fd fd (Out.File s)
+      let fd = Unix.(openfile s ~mode:[O_WRONLY; O_CREAT] ~perm:0o640) in
+      prep_fd_close fd (Out.File s)
+    | Append s ->
+      let fd = Unix.(openfile s ~mode:[O_APPEND; O_CREAT] ~perm:0o640) in
+      prep_fd_close fd (Out.Append s)
     | Pipe ->
       let r, w = Unix.pipe ~cloexec:true () in
       if not block then Unix.set_nonblock r;
@@ -48,13 +53,15 @@ module Stream = struct
 
   let prep_in (type a) : block:bool -> a Cmd.In.t -> a In.t bookkeeping =
     fun ~block -> function
-    | Stdin -> prep_fd Unix.stdin In.Stdin
+    | Stdin -> prep_fd_no_close Unix.stdin In.Stdin
     | Channel ic ->
-      let fd = channel_helper Unix.descr_of_in_channel ic in
-      prep_fd fd In.Channel
+      let fd = Unix.descr_of_in_channel ic in
+      prep_fd_close fd In.Channel
     | File s ->
-      let fd = channel_helper Unix.descr_of_in_channel (In_channel.open_text s) in
-      prep_fd fd (In.File s)
+      (match Unix.(openfile s ~mode:[O_RDONLY] ~perm:0) with
+       | exception Unix.(Unix_error (ENOENT, _, _)) ->
+         raise @@ Subprocess_error (s ^ ": no such file or directory")
+       | fd -> prep_fd_close fd (In.File s))
     | Pipe ->
       let r, w = Unix.pipe ~cloexec:true () in
       if not block then Unix.set_nonblock w;

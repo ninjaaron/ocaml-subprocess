@@ -20,6 +20,7 @@ type stderr = Stderr
 type channel = Channel
 type devnull = Devnull
 type file = File of string
+type append = Append of string
 type pipe = Pipe
 
 exception Subprocess_error of string
@@ -40,6 +41,7 @@ module Cmd : sig
       | Stderr : stderr t
       | Channel : out_channel -> channel t
       | File : string -> file t
+      | Append : string -> append t
       | Devnull : devnull t
       | Pipe : pipe t
     val show : 'a t -> string
@@ -101,6 +103,7 @@ module Out : sig
     | Stderr : stderr t
     | Channel : channel t
     | File : string -> file t
+    | Append : string -> append t
     | Devnull : devnull t
     | Pipe : In_channel.t -> pipe t
   val conv : 'a t -> 'a
@@ -173,6 +176,12 @@ val file_out : string
 val file_err : string
   -> ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, file) Cmd.t
+val append_out : string
+  -> ('stdin, stdout, 'stderr) Cmd.t
+  -> ('stdin, append, 'stderr) Cmd.t
+val append_err : string
+  -> ('stdin, 'stdout, stderr) Cmd.t
+  -> ('stdin, 'stdout, append) Cmd.t
 val devnull_out : ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, devnull, 'stderr) Cmd.t
 val devnull_err : ('stdin, 'stdout, stderr) Cmd.t
