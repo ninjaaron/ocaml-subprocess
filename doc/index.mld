@@ -1,0 +1,38 @@
+{1 Subprocess: abstractions for IO with unix processes}
+
+{!Subprocess} is a module which attempts to make working with unix
+processes in OCaml safer and a bit simpler. Working with OS interfaces
+is never wholly safe, and the goal of this library is not to eliminate
+all failure cases when working with processes---for doing so would
+require reimplementing all of the IO in the standard library. (Maybe in
+Subproces2?)
+
+To this end, commands in Subprocess never recieve a shell. We've had
+enough shell injection CEVs in the past several decades that it's time
+to stop giving our commands a shell. I realize redirection tends to be
+a bit easier to be a bit easier with a shell, but Subprocess provides
+combinators to make it as easy as possible (but no easier!) to do IO
+redirection---and indeed, this is the main point of the library.
+
+Another "feature not a bug" of Subprocess is that, by default, a
+non-zero exit status is considered a failure will produce an error on
+in OCaml. In the top-level functions, this means raising an exception.
+If you, like me, prefer to handle errors with result types, the 
+{!Subprocess.Results} module is provided to represent non-zero exit
+status as an [Error of] {!Subprocess.Exit.t}.
+
+However, I realize that a non-zero exit status is not always an error,
+and for this, the {!Subprocess.Unchecked} module is provided. This
+module is also useful if you are interested in the output of a process
+regardless of failure.
+
+Finally, Suprocess attempts to avoid making the user handle closing
+processes and pipes expliciitly by providing several functions which
+functions which simply read and return process output and then close
+the process, in addition to a family of fold functions which fold over
+line output from a running process, but close it before returning.
+
+For running process interaction, the running process is passed to
+a user-provided function and everything is properly closed when the
+function exits---either by being fully evaluated or by raising an
+exception.
