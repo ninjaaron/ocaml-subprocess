@@ -14,12 +14,16 @@ a bit easier to be a bit easier with a shell, but Subprocess provides
 combinators to make it as easy as possible (but no easier!) to do IO
 redirection---and indeed, this is the main point of the library.
 
+{2 Safety features}
+
 Another "feature not a bug" of Subprocess is that, by default, a
 non-zero exit status is considered a failure will produce an error on
 in OCaml. In the top-level functions, this means raising an exception.
 If you, like me, prefer to handle errors with result types, the 
 {!Subprocess.Results} module is provided to represent non-zero exit
-status as an [Error of] {!Subprocess.Exit.t}.
+status as an [Error of] {!Subprocess.Exit.t}. A combinator is provided
+convert this to [Error of string] for better composition with other 
+Result types in the context of monadic binding.
 
 However, I realize that a non-zero exit status is not always an error,
 and for this, the {!Subprocess.Unchecked} module is provided. This
@@ -36,3 +40,21 @@ For running process interaction, the running process is passed to
 a user-provided function and everything is properly closed when the
 function exits---either by being fully evaluated or by raising an
 exception.
+
+If for some reason you need to pass around a live process in a wider
+context, {!Subprocess.Exec.exec} makes this possible, but you have to
+clean up your own mess at that point.
+
+{2 Extras}
+
+Subprocess generally does not use many (any?) opaque types and
+practically everything has a pretty printer for easier debugging.
+
+Subprocess supports non-blocking IO, but it does not provide direct
+compatibility layers with popular OCaml ascynchronous IO libraries like
+lwt and eio, which typically provide their own process abstractions.
+Neither does Subprocess provide its own event loop. The user must
+handle non-blocking IO operations and process polling manually where
+non-blocking behavior is desired. It is not different from handling
+non-blocking IO in the OCaml standard library and examples will be
+provided here where relevant.
