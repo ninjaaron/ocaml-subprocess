@@ -48,7 +48,7 @@ module Cmd : sig
   end
 
   type ('stdin, 'stdout, 'stderr) t =
-    { args : string array
+    { args : string * string array
     ; stdin : 'stdin In.t
     ; stdout : 'stdout Out.t
     ; stderr : 'stderr Out.t
@@ -138,7 +138,8 @@ val wait : ?mode:Unix.wait_flag list
 
 val poll : ('stdin, 'stdout, 'stderr) t -> Exit.status option
 
-val cmd : ?env:string list
+val cmd : ?prog:string
+  -> ?env:string list
   -> ?block:bool
   -> string list
   -> (stdin, stdout, stderr) Cmd.t

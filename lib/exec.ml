@@ -34,7 +34,7 @@ module Stream = struct
     | Devnull -> prep_fd_close (get_devnull ()) Out.Devnull
     | Channel oc ->
       let fd = Unix.descr_of_out_channel oc in
-      prep_fd_close fd Out.Channel
+      prep_fd_no_close fd Out.Channel
     | File s ->
       let fd = Unix.(openfile s ~mode:[O_WRONLY; O_CREAT] ~perm:0o640) in
       prep_fd_close fd (Out.File s)
@@ -48,7 +48,7 @@ module Stream = struct
       { handle = Out.Pipe ic
       ; send = w
       ; cl = Some w
-      ; closer = fun () -> In_channel.close ic
+      ; closer = fun () -> In_channel.close_noerr ic
       }
 
   let prep_in (type a) : block:bool -> a Cmd.In.t -> a In.t bookkeeping =
@@ -56,7 +56,7 @@ module Stream = struct
     | Stdin -> prep_fd_no_close Unix.stdin In.Stdin
     | Channel ic ->
       let fd = Unix.descr_of_in_channel ic in
-      prep_fd_close fd In.Channel
+      prep_fd_no_close fd In.Channel
     | File s ->
       (match Unix.(openfile s ~mode:[O_RDONLY] ~perm:0) with
        | exception Unix.(Unix_error (ENOENT, _, _)) ->
@@ -69,12 +69,12 @@ module Stream = struct
       { handle = In.Pipe oc
       ; send = r
       ; cl = Some r
-      ; closer = fun () -> Out_channel.close oc
+      ; closer = fun () -> Out_channel.close_noerr oc
       }
 end
 
-let _create ~stdout ~stdin ~stderr ~env args =
-  Unix.create_process_env ~prog:args.(0) ~env ~args ~stdout ~stdin ~stderr
+let _create ~stdout ~stdin ~stderr ~env (prog, args) =
+  Unix.create_process_env ~prog ~env ~args ~stdout ~stdin ~stderr
 
 let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
   let in', out, err =

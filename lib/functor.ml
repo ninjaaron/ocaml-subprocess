@@ -20,6 +20,10 @@ module type S = sig
     f:(('stdin, pipe, stdout) Core.t -> 'a) ->
     'a t
   val run : ('stdin, 'stdout, 'stderr) Cmd.t -> unit t
+  val write : (stdin, 'stdout, 'stderr) Cmd.t ->
+    input:string -> unit t
+  val write_lines : (stdin, 'stdout, 'stderr) Cmd.t ->
+    input:string Seq.t -> unit t
   val read : ('stdin, stdout, 'stderr) Cmd.t -> string t
   val lines : ('stdin, stdout, 'stderr) Cmd.t -> string list t
   val read_err : ('stdin, 'stdout, stderr) Cmd.t -> string t
@@ -46,12 +50,13 @@ module type S = sig
     f:('acc -> (string, string) result -> 'acc) ->
     init:'acc ->
     'acc t
-  val fold_both2 : ?sleep:float ->
-    ('stdin, stdout, stderr) Cmd.t ->
-    out:('out_acc -> string -> 'out_acc) ->
-    out_init:'out_acc ->
-    err:('err_acc -> string -> 'err_acc) ->
-    err_init:'err_acc -> ('out_acc * 'err_acc) t
+
+  val fold_with : ?sep:string ->
+    (stdin, stdout, 'stderr) Cmd.t ->
+    lines:string Seq.t ->
+    f:('acc -> string -> 'acc) ->
+    init:'acc ->
+    'acc t
 
 end
 
@@ -63,6 +68,19 @@ let fold_f stream f init t = In_channel.fold_lines f init (stream t)
 module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
   include M
   let run cmd = exec cmd ~f:run_f
+
+  let write cmd ~input =
+    exec (pipe_in cmd) ~f:(fun t ->
+        Out_channel.output_string (stdin t) input)
+
+  let write_lines cmd ~input =
+    exec (pipe_in cmd) ~f:(fun t ->
+        set_binary_mode_out (stdin t) false;
+        Seq.iter (fun line ->
+            Out_channel.output_string (stdin t) line;
+            Out_channel.output_char (stdin t) '\n'
+          ) input
+      )
   let read cmd = exec (pipe_out cmd) ~f:(read_f stdout)
   let lines cmd = exec (pipe_out cmd) ~f:(lines_f stdout)
   let read_err cmd = exec (pipe_err cmd) ~f:(read_f stderr)
@@ -135,11 +153,26 @@ module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
     let cmd' = no_block @@ pipe_out @@ pipe_err cmd in
     exec cmd' ~f
 
+  let fold_with ?(sep="\n") cmd ~lines ~f ~init =
+    let f' t =
+      let write_line line lines =
+        match Out_channel.output_string (stdin t) line with
+        | exception Sys_blocked_io -> Seq.cons line lines
+        | () ->
+          match Out_channel.output_string (stdin t) sep with
+          | exception Sys_blocked_io -> Seq.cons "" lines
+          | () -> lines in
+      let rec go lines_opt acc =
+        let lines_opt' = Option.bind lines_opt @@ fun lines ->
+          match lines () with
+          | Seq.Nil -> Out_channel.close (stdin t); None
+          | Seq.Cons (line, tl) -> Some (write_line line tl) in
+        match In_channel.input_line (stdout t) with
+        | exception Sys_blocked_io -> go lines_opt' acc
+        | None -> acc
+        | Some line ->
+          go lines_opt' (f acc line) in
+      go (Some lines) init in
+    exec (cmd |> pipe_in |> pipe_out |> no_block) ~f:f'
 
-  let fold_both2 ?sleep cmd ~out ~out_init ~err ~err_init =
-    let f (oacc, eacc) res =
-      match res with
-      | Ok line -> out oacc line, eacc
-      | Error line -> oacc, err eacc line in
-    fold_both ?sleep cmd ~init:(out_init, err_init) ~f
 end

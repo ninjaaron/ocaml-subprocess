@@ -76,7 +76,7 @@ module Cmd = struct
 
   module T = struct
     type ('stdin, 'stdout, 'stderr) t =
-      { args : string array
+      { args : string * string array
       ; stdin : 'stdin In.t
       ; stdout : 'stdout Out.t
       ; stderr : 'stderr Out.t
@@ -101,7 +101,7 @@ module Cmd = struct
   let pp out t =
     let {args; stdin; stdout; stderr; env; block} = t in
     Format.fprintf out "@[%a@]%a"
-      pp_args args
+      pp_args (snd args)
       pp_io [ "stdin", In.show stdin
             ; "stdout", Out.show stdout
             ; "stderr", Out.show stderr];
@@ -220,14 +220,14 @@ let poll t =
   | 0, _ -> None
   | _, status -> Some status
 
-let cmd ?(env=[]) ?(block=true) args =
+let cmd ?(prog="") ?(env=[]) ?(block=true) args =
   if List.is_empty args then failwith "argument array must not be empty";
-  Cmd.{ args=Array.of_list args
-      ; stdin=In.Stdin
-      ; stdout=Out.Stdout
-      ; stderr=Out.Stderr
-      ; env=Array.of_list env
-      ; block=block
+  Cmd.{ args = prog, Array.of_list args
+      ; stdin = In.Stdin
+      ; stdout = Out.Stdout
+      ; stderr = Out.Stderr
+      ; env = Array.of_list env
+      ; block = block
       }
 
 let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
