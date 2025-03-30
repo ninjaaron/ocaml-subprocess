@@ -220,9 +220,13 @@ let poll t =
   | 0, _ -> None
   | _, status -> Some status
 
-let cmd ?(prog="") ?(env=[]) ?(block=true) args =
+let cmd ?prog ?(env=[]) ?(block=true) args =
   if List.is_empty args then failwith "argument array must not be empty";
-  Cmd.{ args = prog, Array.of_list args
+  let args = Array.of_list args in
+  let prog = match prog with
+    | None -> args.(0)
+    | Some s -> s in
+  Cmd.{ args = prog, args
       ; stdin = In.Stdin
       ; stdout = Out.Stdout
       ; stderr = Out.Stderr
