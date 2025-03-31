@@ -1,13 +1,13 @@
 module Unix = UnixLabels
 
-type stdin = Stdin
-type stdout = Stdout
-type stderr = Stderr
-type channel = Channel
-type devnull = Devnull
-type file = File of string
-type append = Append of string
-type pipe = Pipe
+type stdin
+type stdout
+type stderr
+type channel
+type devnull
+type file
+type append
+type pipe
 
 exception Subprocess_error of string
 
@@ -48,7 +48,7 @@ module Cmd = struct
       | Channel _ -> "channel"
       | File s -> Printf.sprintf {|file "%s"|} (String.escaped s)
       | Append s -> Printf.sprintf {|append "%s"|} (String.escaped s)
-      | Devnull -> "devnull"
+      | Devnull -> "/dev/null"
       | Pipe -> "pipe"
   end
 
@@ -68,8 +68,8 @@ module Cmd = struct
     | [||] -> ()
     | env ->
       let open Format in
-      fprintf out "env:[@[%a@]]"
-        (pp_print_array ~pp_sep:(fun out () -> fprintf out ",@ ")
+      fprintf out "env:[|@[%a@]|]"
+        (pp_print_array ~pp_sep:(fun out () -> fprintf out ";@ ")
            (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
         env
 
@@ -100,7 +100,7 @@ module Cmd = struct
 
   let pp out t =
     let {args; stdin; stdout; stderr; env; block} = t in
-    Format.fprintf out "@[%a@]%a"
+    Format.fprintf out "cmd(@[@[%a@]%a"
       pp_args (snd args)
       pp_io [ "stdin", In.show stdin
             ; "stdout", Out.show stdout
@@ -109,7 +109,8 @@ module Cmd = struct
      | [||] -> ()
      | _ ->
        Format.fprintf out "@ @[%a@]" pp_env env);
-    if not block then Format.fprintf out "@ non-blocking"
+    if not block then Format.fprintf out ",@ non-blocking";
+    Format.fprintf out "@])"
 
   let show cmd =
     Format.asprintf "%a" pp cmd
@@ -166,12 +167,6 @@ module In = struct
     | Channel : channel t
     | File : string -> file t
     | Pipe : Out_channel.t -> pipe t
-
-  let conv (type a) : a t -> a = function
-    | Stdin -> Stdin
-    | Channel -> Channel
-    | File s -> File s
-    | Pipe _ -> Pipe
 end
 
 module Out = struct
@@ -183,15 +178,6 @@ module Out = struct
     | Append : string -> append t
     | Devnull : devnull t
     | Pipe : In_channel.t -> pipe t
-
-  let conv (type a) : a t -> a = function
-    | Stdout -> Stdout
-    | Stderr -> Stderr
-    | Channel -> Channel
-    | File s -> File s
-    | Append s -> Append s
-    | Devnull -> Devnull
-    | Pipe _ -> Pipe
 end
 
 type ('stdin, 'stdout, 'stderr) t =

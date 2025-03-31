@@ -7,34 +7,35 @@ all failure cases when working with processes---for doing so would
 require reimplementing all of the IO in the standard library. (Maybe in
 Subproces2?)
 
+{2 Safety features}
+
 To this end, commands in Subprocess never recieve a shell. We've had
-enough shell injection CEVs in the past several decades that it's time
-to stop giving our commands a shell. I realize redirection tends to be
-a bit easier to be a bit easier with a shell, but Subprocess provides
+enough injection CEVs in the past several decades that it's time to
+stop giving our commands a shell. I realize redirection tends to be a
+bit easier to be a bit easier with a shell, but Subprocess provides
 combinators to make it as easy as possible (but no easier!) to do IO
 redirection---and indeed, this is the main point of the library.
 
-{2 Safety features}
-
 Another "feature not a bug" of Subprocess is that, by default, a
 non-zero exit status is considered a failure will produce an error on
-in OCaml. In the top-level functions, this means raising an exception.
-If you, like me, prefer to handle errors with result types, the 
-{!Subprocess.Results} module is provided to represent non-zero exit
-status as an [Error of] {!Subprocess.Exit.t}. A combinator is provided
-convert this to [Error of string] for better composition with other 
-Result types in the context of monadic binding.
+in OCaml. In the top-level functions of the {!Subprocess} module, this
+means raising an exception.  If you, like me, prefer to handle errors
+with result types, the {!Subprocess.Results} module is provided to
+represent non-zero exit status as an [Error of] {!Subprocess.Exit.t}. A
+combinator is provided convert this to [Error of string] for better
+composition with other result types in the context of monadic binding.
 
 However, I realize that a non-zero exit status is not always an error,
 and for this, the {!Subprocess.Unchecked} module is provided. This
 module is also useful if you are interested in the output of a process
-regardless of failure.
+regardless of the exit status.
 
 Finally, Suprocess attempts to avoid making the user handle closing
 processes and pipes expliciitly by providing several functions which
-functions which simply read and return process output and then close
-the process, in addition to a family of fold functions which fold over
-line output from a running process, but close it before returning.
+simply read process output, close all pipes and wait for the process to
+exit before returning the output (or error). There is also family of
+fold functions which fold over line output from a running process, but
+clean everything up before returning.
 
 For running process interaction, the running process is passed to
 a user-provided function and everything is properly closed when the
@@ -47,8 +48,12 @@ clean up your own mess at that point.
 
 {2 Extras}
 
-Subprocess generally does not use many (any?) opaque types and
-practically everything has a pretty printer for easier debugging.
+Subprocess generally does not use many any opaque types and practically
+everything has a pretty printer for easier debugging. The lack of
+opaque types is not an {i invitation} to go digging into the
+implementation details  {i which are subject to change}, but rather an
+acknowledgement that no abstraction is perfect and there may at times
+valid reasons to dig into them.
 
 Subprocess supports non-blocking IO, but it does not provide direct
 compatibility layers with popular OCaml ascynchronous IO libraries like

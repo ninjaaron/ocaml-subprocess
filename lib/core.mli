@@ -14,14 +14,14 @@
     cases. Their main function is to provide type-level information
     about the streams. *)
 
-type stdin = Stdin
-type stdout = Stdout
-type stderr = Stderr
-type channel = Channel
-type devnull = Devnull
-type file = File of string
-type append = Append of string
-type pipe = Pipe
+type stdin
+type stdout
+type stderr
+type channel
+type devnull
+type file
+type append
+type pipe
 
 exception Subprocess_error of string
 
@@ -93,8 +93,6 @@ module In : sig
     | Channel : channel t
     | File : string -> file t
     | Pipe : Out_channel.t -> pipe t
-
-  val conv : 'a t -> 'a
 end
 
 module Out : sig
@@ -106,7 +104,6 @@ module Out : sig
     | Append : string -> append t
     | Devnull : devnull t
     | Pipe : In_channel.t -> pipe t
-  val conv : 'a t -> 'a
 end
 
 
