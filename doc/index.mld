@@ -5,14 +5,14 @@ processes in OCaml safer and simpler (in that order).
 
 {3 Safety features}
 
-Several features are inlcuded in {!Subprocess} to improve the safety
+Several features are included in {!Subprocess} to improve the safety
 and correctness of programs which launch other programs. It is not
-perfect in this regard, but it does try to aliviate many of the common
+perfect in this regard, but it does try to alleviate many of the common
 pitfalls when working with processes.
 
 {4 No Shell}
 
-Commands in {!Subprocess} never recieve a shell. We've had enough
+Commands in {!Subprocess} never receive a shell. We've had enough
 injection CEVs in the past several decades that it's time to stop
 giving our commands a shell. I realize redirection tends to be a bit
 easier to be a bit easier with a shell, but Subprocess provides
@@ -46,7 +46,7 @@ regardless of the exit status.
 {4 Cleanup is abstracted }
 
 Subprocess attempts to avoid making the user handle closing processes
-and pipes expliciitly by providing several functions which simply read
+and pipes explicitly by providing several functions which simply read
 process output, close all pipes and wait for the process to exit before
 returning the output (or error). There is also family of fold functions
 which fold over line output from a running process, but clean
@@ -67,13 +67,13 @@ Subprocess generally does not use many any opaque types and practically
 everything has a pretty printer for easier debugging. The lack of
 opaque types is not an {i invitation} to go digging into the
 implementation details  {i which are subject to change}, but rather an
-acknowledgement that no abstraction is perfect and there may at times
+acknowledgment that no abstraction is perfect and there may at times
 valid reasons to dig into them.
 
 {4 Opt-in non-blocking IO}
 
 Subprocess supports non-blocking IO, but it does not provide direct
-compatibility layers with popular OCaml ascynchronous IO libraries like
+compatibility layers with popular OCaml asynchronous IO libraries like
 lwt and eio, which typically provide their own process abstractions.
 Neither does Subprocess provide its own event loop. The user must
 handle non-blocking IO operations and process polling manually where
@@ -137,7 +137,7 @@ stream.
 - : (stdin, stdout, channel) Cmd.t = cmd(`echo foo`, stderr: channel)
 ]}
 
-This works well enough if your desire is that the ouptut simply be
+This works well enough if your desire is that the output simply be
 printed, but we run into problems in this case:
 
 {[
@@ -185,7 +185,7 @@ handle this case in different ways.
 ]}
 
 If you look closely at the exit information in the previous example,
-you will also get a glimps of how the sausage is made. [my_cmd] has
+you will also get a glimpse of how the sausage is made. [my_cmd] has
 its [stdout] set to the default (inheriting from the spawning process)
 but the [read] function sets it to [pipe] internally which is necessary
 to read the output into an OCaml string.
@@ -196,7 +196,7 @@ As already seen, commands carry type-level information about their
 I/O streams. Whether you regard this as expressive or {i excessive} may
 be a matter of taste, but a consequence of this is that not all
 commands instances are valid with all of these process executor
-fucntions. 
+functions. 
 
 {[
 # read (my_cmd |> file_out "out.txt");;
@@ -206,14 +206,14 @@ Error: This expression has type (stdin, file, stderr) Cmd.t
 ]}
 
 Here, [stdout] would be redirected twice, and from the perspective of someone
-reading the code, this is ambigious in its meaning. Rather than let
+reading the code, this is ambiguous in its meaning. Rather than let
 inscrutable bugs creep into our code, we simply make such ambiguities
 unrepresentable.
 
 {3 Interacting with Running Processes (or [exec] and [let&])}
 
 At times you may wish to interact with a running process, reading from
-pipes iteratively or polling the process as you go. For itterating over
+pipes iteratively or polling the process as you go. For iterating over
 output, you may use [Subprocess.fold] and related functions, as we have
 already seen. However as an illustrative example lets make the world's
 most inefficient capitalize function.
@@ -244,14 +244,14 @@ Several important things here.
   Trying to access a stream that is not a pipe with these functions is
   simply a type error.
 - I/O with pipes is tricky. Though [exec] will automatically close any
-  open pipes, it this we still have to explicity [close] or [flush]
-  stdin in this this case or readding from stdout will block because
+  open pipes, it this we still have to explicitly [close] or [flush]
+  stdin in this this case or reading from stdout will block because
   the string will just be sitting in a buffer otherwise.
 
 Also note that for longer inputs and outputs, we would want to use
 non-blocking I/O to avoid these kinds of problems--a good case for
 using {!Subprocess.fold_with}, which handles reads and writes
-ascynchronously.
+asynchronously.
 {[
 # 
 let capitalize str =
@@ -265,7 +265,7 @@ val capitalize : string -> string = <fun>
 {4 creating process pipelines}
 
 To simplify creating pipelines, [let&] another way to execute commands
-with similar semantics to [exec]. [&] is a mneumonic for backgrounding
+with similar semantics to [exec]. [&] is a mnemonic for backgrounding
 process in the shell, which is sort of similar to what is going on
 here.
 
@@ -299,7 +299,7 @@ FOO
 If working processes inside of callback functions cramps your style for
 some reason, you can also use {!Subprocess.Exec.exec} to pass them
 around. It is simply your responsibility to ensure they are cleaned up
-evnetually.
+eventually.
 
 {[
 # let proc = Exec.exec (cmd ["echo"; "foo"]);;
@@ -314,7 +314,7 @@ closure that closes any file descriptors which need to be closed and
 waits for the process to exit, returning an instance of
 {!Subprocess.Exit.t}.
 
-Note that this inludes pipes and any redirects of the type [file].
+Note that this includes pipes and any redirects of the type [file].
 However, channels bound to a command are not automatically closed,
 since Subprocess didn't open them.
 
@@ -355,7 +355,7 @@ val proc : (pipe, pipe, stderr) t =
           cmd(`tr a-z A-Z`, stdin: pipe, stdout: pipe, non-blocking))
 # In_channel.input_line (stdout proc);;
 Exception: Sys_blocked_io.
-[traceback omitted]
+[stack trace omitted]
 ]}
 
 As an example of how programming with non-blocking pipes looks, here
@@ -389,7 +389,7 @@ To summarize, you have to check for [Sys_blocked_io] after every I/O
 operation and decide what action to take if I/O was not available on
 the channel you tried to communicate with.
 
-Another approach which is not techincally non-blocking, but achieves
+Another approach which is not technically non-blocking, but achieves
 the same thing is using [Unix.select]. {!Subprocess.read_both} uses
 this approach, and you may look at the source code in the repository
 you are curious how that might work. (It's defined in functor.ml)
