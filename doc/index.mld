@@ -45,7 +45,7 @@ regardless of the exit status.
 
 {4 Cleanup is abstracted }
 
-Suprocess attempts to avoid making the user handle closing processes
+Subprocess attempts to avoid making the user handle closing processes
 and pipes expliciitly by providing several functions which simply read
 process output, close all pipes and wait for the process to exit before
 returning the output (or error). There is also family of fold functions
@@ -128,6 +128,30 @@ For example:
 - : (stdin, stdout, stderr) Cmd.t = cmd(`echo foo`, env:["USER=app"])
 ]}
 
+One thing that cannot be expressed very well with these combinators is
+the shell idiom [2>&1], which combines stdout and stderr into a single
+stream.
+
+{[
+# my_cmd |> channel_err Out_channel.stdout;;
+- : (stdin, stdout, channel) Cmd.t = cmd(`echo foo`, stderr: channel)
+]}
+
+This works well enough if your desire is that the ouptut simply be
+printed, but we run into problems in this case:
+
+{[
+# my_cmd |> channel_err Out_channel.stdout |> pipe_out;;
+- : (stdin, pipe, channel) Cmd.t =
+cmd(`echo foo`, stdout: pipe, stderr: channel)`
+]}
+
+In this case, the child's stdout is redirected to a pipe, but stderr is
+still printed to the parent process's [stdout].
+
+What we have for this case is a family of execution helpers with
+[_joined] in the name such as {!Subprocess.read_joined}.
+
 {3 Execution Helpers}
 
 Note that we have not yet executed any process. These combinators
@@ -146,9 +170,9 @@ foo
 - : int = 3
 ]}
 
-There are many more such functions, starting with {!Subprocess.run}.
-Remember that all the functions demonstrated here will throw an
-exception on non-zero exit status. However, that all have analogous
+There are many more such functions. See {!Subprocess.run} and following
+for more. Remember that all the functions demonstrated here will throw
+an exception on non-zero exit status. However, they all have analogous
 versions in {!Subprocess.Results} and {!Subprocess.Unchecked} which
 handle this case in different ways.
 
@@ -210,7 +234,7 @@ val capitalize : string -> string = <fun>
 
 Several important things here.
 
-- [Subprocess.exit] takes a command as input in addition to a function.
+- [Subprocess.exec] takes a command as input in addition to a function.
   The function will take a handle to the process as input and will
   automatically close everything when the function exits.
 - [Subprocess.stdin] and [Subprocess.stdout] are functions which will
@@ -241,4 +265,138 @@ val capitalize : string -> string = <fun>
 {4 creating process pipelines}
 
 To simplify creating pipelines, [let&] another way to execute commands
-with similar semantics to [exec]
+with similar semantics to [exec]. [&] is a mneumonic for backgrounding
+process in the shell, which is sort of similar to what is going on
+here.
+
+{[
+# let& p1 = cmd ["echo"; "foo"] |> pipe_out in
+  let& _p2 = cmd ["tr"; "a-z"; "A-Z"] |> channel_in (stdout p1) in
+  ();;
+FOO
+- : unit = ()
+]}
+
+Note that this example actually crashes utop for reason I don't fully
+understand, but it works correctly in programs.
+
+Also be aware that {!Subprocess.Results.(let&)} composes in a way
+similar to monadic binding, so a [result] instance must be returned.
+{!Subprocess.Results.exec} does not behave in the same way.
+
+{[
+# Results.(
+let& p1 = cmd ["echo"; "foo"] |> pipe_out in
+let& p2 = cmd ["tr"; "a-z"; "A-Z"] |> channel_in (stdout p1) in
+Ok ());;
+FOO
+- : (unit, Exit.t) result = Ok ()
+(* yes, this one also crashes utop. *)
+]}
+
+{3 Passing around processes}
+
+If working processes inside of callback functions cramps your style for
+some reason, you can also use {!Subprocess.Exec.exec} to pass them
+around. It is simply your responsibility to ensure they are cleaned up
+evnetually.
+
+{[
+# let proc = Exec.exec (cmd ["echo"; "foo"]);;
+foo
+val proc : (stdin, stdout, stderr) t = process(pid: 17508, cmd(`echo foo`))
+# proc.close ();;
+- : Exit.t = (exited: 0, pid: 17508, cmd(`echo foo`))
+]}
+
+Each instance of {!Subprocess.t} has a [close] property, which is a
+closure that closes any file descriptors which need to be closed and
+waits for the process to exit, returning an instance of
+{!Subprocess.Exit.t}.
+
+Note that this inludes pipes and any redirects of the type [file].
+However, channels bound to a command are not automatically closed,
+since Subprocess didn't open them.
+
+{3 Non-blocking I/O {i or "working with multiple pipes for one
+process"}}
+
+Subprocess is not fundamentally about efficiently multiplexing I/O
+operations. Nonetheless working with a process with multiple pipes open
+Is a problem which is best solved with non-blocking I/O. Using blocking
+I/O in such a case can lead to deadlocks if you are waiting for I/O on
+one pipe while the process you've created is waiting for I/O on another
+pipe. Unless you've written the program yourself, you really have no
+control over how other processes do I/O or when they flush their
+buffers.
+
+First, if you are working with multiple pipes for one process, use
+{!Subprocess.no_block} to set the non-blocking flag.
+
+{[
+# let tr_upcase =
+    cmd ["tr"; "a-z"; "A-Z"] |> pipe_in |> pipe_out |> no_block;;
+val tr_upcase : (pipe, pipe, stderr) Cmd.t =
+  cmd(`tr a-z A-Z`, stdin: pipe, stdout: pipe, non-blocking)
+]}
+
+Note that there is only one flag to set, and it is applied to all pipes.
+In any scenario where you want to do non-blocking operations on one
+pipe, you will want non-blocking on all of them.
+
+With OCaml channels, when they are set to non-blocking and you try to
+I/O when it's not ready, it raises [Sys_blocked_io], so you have to
+catch that for any I/O operation.
+
+{[
+# let proc = Exec.exec tr_upcase;;
+val proc : (pipe, pipe, stderr) t =
+  process(pid: 18679,
+          cmd(`tr a-z A-Z`, stdin: pipe, stdout: pipe, non-blocking))
+# In_channel.input_line (stdout proc);;
+Exception: Sys_blocked_io.
+[traceback omitted]
+]}
+
+As an example of how programming with non-blocking pipes looks, here
+follows the implementation of {!Subprocess.fold_with}:
+
+{[
+let fold_with ?(sep="\n") cmd ~lines ~f ~init =
+  let f' t =
+    let write_line line lines =
+      match Out_channel.output_string (stdin t) line with
+      | exception Sys_blocked_io -> Seq.cons line lines
+      | () ->
+        match Out_channel.output_string (stdin t) sep with
+        | exception Sys_blocked_io -> Seq.cons "" lines
+        | () -> lines in
+    let rec go lines_opt acc =
+      let lines_opt' = Option.bind lines_opt @@ fun lines ->
+        match lines () with
+        | Seq.Nil -> Out_channel.close (stdin t); None
+        | Seq.Cons (line, tl) -> Some (write_line line tl) in
+      match In_channel.input_line (stdout t) with
+      | exception Sys_blocked_io -> go lines_opt' acc
+      | None -> acc
+      | Some line ->
+        go lines_opt' (f acc line) in
+    go (Some lines) init in
+  exec (cmd |> pipe_in |> pipe_out |> no_block) ~f:f'
+]}
+
+To summarize, you have to check for [Sys_blocked_io] after every I/O
+operation and decide what action to take if I/O was not available on
+the channel you tried to communicate with.
+
+Another approach which is not techincally non-blocking, but achieves
+the same thing is using [Unix.select]. {!Subprocess.read_both} uses
+this approach, and you may look at the source code in the repository
+you are curious how that might work. (It's defined in functor.ml)
+
+Any helper function that ends with [_both] uses non-blocking I/O
+internally, though the helper function itself will block until all
+I/O is finished.
+
+One could conceivably execute such functions in worker threads, of
+course, so as not to block the entire program.
