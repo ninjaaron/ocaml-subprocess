@@ -68,9 +68,9 @@ module Cmd = struct
     | [||] -> ()
     | env ->
       let open Format in
-      fprintf out "env:[|@[%a@]|]"
+      fprintf out "env:[@[%a@]]"
         (pp_print_array ~pp_sep:(fun out () -> fprintf out ";@ ")
-           (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
+           (fun out arg -> fprintf out "%S" (arg_to_repr arg)))
         env
 
 
@@ -108,7 +108,7 @@ module Cmd = struct
     (match env with
      | [||] -> ()
      | _ ->
-       Format.fprintf out "@ @[%a@]" pp_env env);
+       Format.fprintf out ",@ @[%a@]" pp_env env);
     if not block then Format.fprintf out ",@ non-blocking";
     Format.fprintf out "@])"
 

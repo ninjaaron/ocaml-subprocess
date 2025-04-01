@@ -86,6 +86,8 @@ version of Subprocess.
 
 {2 Introductory examples}
 
+{3 Commands }
+
 The most fundamental abstraction in Subprocess is {!Subprocess.Cmd.t}
 It is simply a data representation of a yet-to-be-executed command,
 and contains information about arguments, I/O redirection, environment
@@ -104,9 +106,139 @@ the standard streams, which both gives us more information as
 programmers, but also turns certain failure cases for I/O into type
 errors.
 
-A number of combinators are defined at the end of {!Subprocess.Core}
+A number of combinators are defined after {!Subprocess.Core.val-cmd}
 which may be used to redirect the standard streams, as well as set
 environment variables and use non-blocking I/O for pipes. {i Subprocess
-will either unblock all pipes or none. More on that later.}
+will either unblock all pipes or none. More on that later.} I typically
+use the pipeline operator with this combinators because it "feels
+right", but obviously you can use regular function application or
+the [@@] application operator.
 
 For example:
+
+{[
+(* similar to `my_cmd 2> /dev/null` *)
+# my_cmd |> devnull_err;;
+- : (stdin, stdout, devnull) Cmd.t = cmd(`echo foo`, stderr: /dev/null)
+(* similar to `my_cmd < input.txt *)
+# my_cmd |> file_in "input.txt";;
+- : (file, stdout, stderr) Cmd.t = cmd(`echo foo`, stdin: file "input.txt")
+(* similar to `USER=app my_cmd` *)
+# my_cmd |> env ["USER=app"];;
+- : (stdin, stdout, stderr) Cmd.t = cmd(`echo foo`, env:["USER=app"])
+]}
+
+{3 Execution Helpers}
+
+Note that we have not yet executed any process. These combinators
+simply produce a new instance of [Subprocess.Cmd.t]. How do we execute
+commands? There are a variety of helper functions for this.
+
+{[
+# run my_cmd;;
+foo
+- : unit = ()
+# read my_cmd;;
+- : string = "foo\n" 
+# lines my_cmd;;
+- : string list = ["foo"]
+# fold my_cmd ~init:0 ~f:(fun acc line -> acc + String.length line);;
+- : int = 3
+]}
+
+There are many more such functions, starting with {!Subprocess.run}.
+Remember that all the functions demonstrated here will throw an
+exception on non-zero exit status. However, that all have analogous
+versions in {!Subprocess.Results} and {!Subprocess.Unchecked} which
+handle this case in different ways.
+
+{[
+# Results.read my_cmd;;
+- : (string, Exit.t) result = Ok "foo\n"
+# Unchecked.read my_cmd;;
+- : Exit.t * string =
+((exited: 0, pid: 13762, cmd(`echo foo`, stdout: pipe)), "foo\n")
+]}
+
+If you look closely at the exit information in the previous example,
+you will also get a glimps of how the sausage is made. [my_cmd] has
+its [stdout] set to the default (inheriting from the spawning process)
+but the [read] function sets it to [pipe] internally which is necessary
+to read the output into an OCaml string.
+
+{4 {i on the benefits of expressive types}}
+
+As already seen, commands carry type-level information about their
+I/O streams. Whether you regard this as expressive or {i excessive} may
+be a matter of taste, but a consequence of this is that not all
+commands instances are valid with all of these process executor
+fucntions. 
+
+{[
+# read (my_cmd |> file_out "out.txt");;
+Error: This expression has type (stdin, file, stderr) Cmd.t
+       but an expression was expected of type (stdin, stdout, 'a) Cmd.t
+       Type file is not compatible with type stdout
+]}
+
+Here, [stdout] would be redirected twice, and from the perspective of someone
+reading the code, this is ambigious in its meaning. Rather than let
+inscrutable bugs creep into our code, we simply make such ambiguities
+unrepresentable.
+
+{3 Interacting with Running Processes (or [exec] and [let&])}
+
+At times you may wish to interact with a running process, reading from
+pipes iteratively or polling the process as you go. For itterating over
+output, you may use [Subprocess.fold] and related functions, as we have
+already seen. However as an illustrative example lets make the world's
+most inefficient capitalize function.
+
+{[
+# 
+let capitalize str = 
+  exec (cmd ["tr"; "a-z"; "A-Z"] |> pipe_in |> pipe_out)
+    ~f:(fun proc ->
+      Out_channel.output_string (stdin proc) str;
+      Out_channel.close (stdin proc);
+      In_channel.input_all (stdout proc)
+    );;
+val capitalize : string -> string = <fun>
+# capitalize "foo";;
+- : string = "FOO"`
+]}
+
+Several important things here.
+
+- [Subprocess.exit] takes a command as input in addition to a function.
+  The function will take a handle to the process as input and will
+  automatically close everything when the function exits.
+- [Subprocess.stdin] and [Subprocess.stdout] are functions which will
+  return [output_channel] and [input_channel] respectively if these
+  streams have been set to [pipe]. As you might expect, there is also
+  a [Subprocess.stderr] function for accessing the process's stderr.
+  Trying to access a stream that is not a pipe with these functions is
+  simply a type error.
+- I/O with pipes is tricky. Though [exec] will automatically close any
+  open pipes, it this we still have to explicity [close] or [flush]
+  stdin in this this case or readding from stdout will block because
+  the string will just be sitting in a buffer otherwise.
+
+Also note that for longer inputs and outputs, we would want to use
+non-blocking I/O to avoid these kinds of problems--a good case for
+using {!Subprocess.fold_with}, which handles reads and writes
+ascynchronously.
+{[
+# 
+let capitalize str =
+  fold_with (cmd ["tr"; "a-z"; "A-Z"]) ~lines:(Seq.return str) ~init:""
+    ~f:( ^ );;
+val capitalize : string -> string = <fun>
+# capitalize "foo";;
+- : string = "FOO"
+]}
+
+{4 creating process pipelines}
+
+To simplify creating pipelines, [let&] another way to execute commands
+with similar semantics to [exec]
