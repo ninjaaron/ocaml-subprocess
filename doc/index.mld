@@ -267,7 +267,9 @@ val capitalize : string -> string = <fun>
 To simplify creating pipelines, [let&] another way to execute commands
 with similar semantics to [exec]. [&] is a mnemonic for backgrounding
 process in the shell, which is sort of similar to what is going on
-here.
+here in the sense that the process is launched in the background as
+your OCaml code continues to execute, but different in the sense that
+you have a handle to the process and any open pipes.
 
 {[
 # let& p1 = cmd ["echo"; "foo"] |> pipe_out in
@@ -277,7 +279,7 @@ FOO
 - : unit = ()
 ]}
 
-Note that this example actually crashes utop for reason I don't fully
+Note that this example actually crashes utop for reasons I don't fully
 understand, but it works correctly in programs.
 
 Also be aware that {!Subprocess.Results.(let&)} composes in a way
