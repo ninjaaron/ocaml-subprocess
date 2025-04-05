@@ -1,24 +1,12 @@
 module Core = Core
-module Managed_in = Managed_in
 
 include module type of Core
-
-val open_out : ('stdin, stdout, 'stderr) Cmd.t -> Managed_in.t
-val open_err : ('stdin, 'stdout, stderr) Cmd.t -> Managed_in.t
 
 include Functor.S with type 'a t := 'a
 
 val (let&) : ('stdin, 'stdout, 'stderr) Cmd.t ->
   (('stdin, 'stdout, 'stderr) t -> 'a) -> 'a
 
-val managed_read : Managed_in.t -> string
-val managed_lines : Managed_in.t -> string list
-val managed_line : Managed_in.t -> string option
-val managed_char : Managed_in.t -> char option
-val managed_byte : Managed_in.t -> int option
-val managed_input :
-  Managed_in.t -> buf:bytes -> pos:int -> len: int ->  int
-  
 module Results : sig
   include Functor.S with type 'a t := ('a, Exit.t) result
 
@@ -42,9 +30,29 @@ module Results : sig
     (('stdin, 'stderr, 'stdout) t -> ('a, Exit.t) result) ->
     ('a, Exit.t) result
 
-  val managed_read : Managed_in.t -> (string, Exit.t) result
-  val managed_lines : Managed_in.t -> (string list, Exit.t) result
+  include module type of Core
+end
 
+module StringResults : sig
+  include Functor.S with type 'a t := ('a, string) result
+
+  val bind : 
+    ('stdin, 'stdout, 'stderr) Cmd.t ->
+    f:(('stdin, 'stdout, 'stderr) t -> ('a, string) result) ->
+    ('a, string) result
+  val bind_joined : 
+    ('stdin, stdout, stderr) Cmd.t ->
+    f:(('stdin, pipe, stdout) t -> ('a, string) result) ->
+    ('a, string) result
+
+  val (let*) : 
+    ('a, 'b) result ->
+    ('a -> ('c, 'b) result) ->
+    ('c, 'b) result
+  val (let&) : 
+    ('stdin, 'stderr, 'stdout) Cmd.t ->
+    (('stdin, 'stderr, 'stdout) t -> ('a, string) result) ->
+    ('a, string) result
   include module type of Core
 end
 
@@ -57,5 +65,20 @@ module Unchecked : sig
     input:string Seq.t -> Exit.t
   include module type of Core
 end
+
+val read_both_proc : ('stdin, pipe, pipe) t -> (string * string)
+
+val fold_both_proc : ?sleep:float ->
+  ('stdin, pipe, pipe) t ->
+  f:('acc -> (string, string) result -> 'acc) ->
+  init:'acc ->
+  'acc
+
+val fold_with_proc : ?sep:string ->
+  (pipe, pipe, 'stderr) t ->
+  lines:string Seq.t ->
+  f:('acc -> string -> 'acc) ->
+  init:'acc ->
+  'acc
 
 module Exec = Exec

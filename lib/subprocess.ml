@@ -1,14 +1,5 @@
 module Core = Core
-module Managed_in = Managed_in
 include Core
-
-let open_out cmd =
-  let proc = Exec.exec (pipe_out cmd) in
-  Managed_in.Pipe {proc; ic=(stdout proc)}
-
-let open_err cmd =
-  let proc = Exec.exec (pipe_err cmd) in
-  Managed_in.Pipe {proc; ic=(stderr proc)}
 
 include Functor.Make(struct
     type 'a t = 'a
@@ -17,25 +8,6 @@ include Functor.Make(struct
   end)
 
 let (let&) cmd f = exec cmd ~f
-
-let managed_read mng =
-  Exit.exn (Managed_in.all mng)
-
-let managed_lines mng =
-  Exit.exn (Managed_in.lines mng)
-
-let _managed_either f mng =
-  match f mng with
-  | Either.Left ex -> Exit.exn (ex, None)
-  | Right value -> Some value
-
-let managed_line mng = _managed_either Managed_in.line mng
-let managed_char mng = _managed_either Managed_in.char mng
-let managed_byte mng = _managed_either Managed_in.byte mng
-let managed_input mng ~buf ~pos ~len =
-  match Managed_in.input mng ~buf ~pos ~len with
-  | Right n -> n
-  | Left ex -> Exit.exn (ex, 0)
 
 module Results = struct
   include Functor.Make(struct
@@ -55,13 +27,27 @@ module Results = struct
 
   let (let*) = Result.bind
   let (let&) cmd f = bind cmd ~f
-
-  let managed_read mng =
-    Exit.res (Managed_in.all mng)
-
-  let managed_lines mng =
-    Exit.res (Managed_in.lines mng)
   include Core 
+end
+
+module StringResults = struct
+  include Functor.Make(struct
+      type 'a t = ('a, string) result
+      let exec cmd ~f = Exit.string_error @@ Results.exec cmd ~f
+      let exec_joined cmd ~f = Exit.string_error @@ Results.exec_joined cmd ~f
+    end)
+
+  let bind cmd ~f =
+    let exit, out = Exec.in_context cmd ~f in
+    Result.bind out (fun x -> Exit.(string_error @@ res (exit, x)))
+  let bind_joined cmd ~f =
+    let exit, out = Exec.shared_context cmd ~f in
+    Result.bind out (fun x -> Exit.(string_error @@ res (exit, x)))
+
+  let ( let* ) = Result.bind
+  let ( let& ) cmd f = bind cmd ~f
+
+  include Core
 end
 
 module Unchecked = struct
@@ -76,4 +62,7 @@ module Unchecked = struct
   include Core
 end
 
+let read_both_proc = Functor.read_both_proc
+let fold_both_proc = Functor.fold_both_proc
+let fold_with_proc = Functor.fold_with_proc
 module Exec = Exec
