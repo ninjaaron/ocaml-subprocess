@@ -3,6 +3,7 @@ module Unix = UnixLabels
 open StdLabels
 module type Exec_t = sig
   type 'a t
+
   val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
     f:(('stdin, 'stdout, 'stderr) Core.t -> 'a) ->
     'a t
@@ -13,45 +14,114 @@ end
 
 module type S = sig
   type 'a t
+
+  (** Execute a command in, where a handle to the created process will
+      be availbe as the sole input parameter of the function [f]. When
+      [f] exits, we close any "dangling" file descriptors and wait for
+      the process to exit, finally returning the output value of [f]
+      wrapped in the output type.  *)
   val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
     f:(('stdin, 'stdout, 'stderr) Core.t -> 'a) ->
     'a t
+
+  (** Same as {!exec}, but stdout and stderr are redirected to the
+      same pipe. This is similar to [2>&1 |] in the shell.  *)
   val exec_joined : ('stdin, stdout, stderr) Cmd.t ->
     f:(('stdin, pipe, stdout) Core.t -> 'a) ->
     'a t
+
+  (** Execute the command and wait for it to exit, returning [()]
+      wrapped in the output type.  *)
   val run : ('stdin, 'stdout, 'stderr) Cmd.t -> unit t
+
+  (** Execute the command and write the [input] string to the stdin of
+      the process.  *)
   val write : (stdin, 'stdout, 'stderr) Cmd.t ->
     input:string -> unit t
+
+  (** Execute the command and write the [input] [Seq.t] instance to
+      the stdin of the process, separated by newline characters. If
+      you want to read from stdout while writing, use
+      {!fold_with}.  *)
   val write_lines : (stdin, 'stdout, 'stderr) Cmd.t ->
     input:string Seq.t -> unit t
+
+  (** Execute the command and read its stdout into a string wrapped in
+      the output type.  *)
   val read : ('stdin, stdout, 'stderr) Cmd.t -> string t
+
+  (** Same as {!read} but with a list of lines wrapped in the output
+     type.  *)
   val lines : ('stdin, stdout, 'stderr) Cmd.t -> string list t
+
+  (** Same as {!read}, but reads stderr rather than stdout. *)
   val read_err : ('stdin, 'stdout, stderr) Cmd.t -> string t
+
+  (** Same as {!lines}, but reads stderr rather than stdout. *)
   val lines_err : ('stdin, 'stdout, stderr) Cmd.t -> string list t
+
+  (** Same as {!read} but reads stdout and stderr as a single
+      stream.  *)
   val read_joined : ('stdin, stdout, stderr) Cmd.t -> string t
+
+  (** Same as {!lines} but reads stdout and stderr as a single
+      stream.  *)
   val lines_joined : ('stdin, stdout, stderr) Cmd.t -> string list t
+
+  (** Same as {!read_joined} but reads stdout and stderr as a separate
+      strings streams, returning a pair of strings wrapped in the
+      ouput type.  *)
   val read_both : ('stdin, stdout, stderr) Cmd.t -> (string * string) t
+
+  (** Same as {!lines_joined} but reads stdout and stderr as a separate
+      strings streams, returning a pair of string lists wrapped in the
+      ouput type.  *)
   val lines_both : ('stdin, stdout, stderr) Cmd.t
     -> (string list * string list) t
+
+  (** Execute the command. Do a left fold over the lines of output
+      from the processe's stdout. Wraps the accumulated output in the
+      output type.  *)
   val fold : ('stdin, stdout, 'stderr) Cmd.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
     'acc t
+
+  (** Same as {!fold}, but fold over lines from stderr. *)
   val fold_err : ('stdin, 'stdout, stderr) Cmd.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
     'acc t
+
+  (** Same as {!fold}, but joins stdout and stderr into a single
+      stream.  *)
   val fold_joined : ('stdin, stdout, stderr) Cmd.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
     'acc t
+
+  (** Same as {!fold_joined}, but wraps each line of stdin in [Ok]
+      and lines of stderr in [Error] so they can be
+      distinguished. This function uses asynchronous I/O internally,
+      so the optional [sleep] parameter is provided as a means to
+      pause briefly if output is expected to be slow to avoid pegging
+      the CPU with a loop that does nothing. *)
   val fold_both : ?sleep:float ->
     ('stdin, stdout, stderr) Cmd.t ->
     f:('acc -> (string, string) result -> 'acc) ->
     init:'acc ->
     'acc t
 
-  val fold_with : ?sep:string ->
+  (** Execute the command. Feed items from [lines] to the process
+      stdin, which will be separated with a newline character by
+      default. Use the optional [sep] parameter to change this to
+      another string. While all that is happening, fold over lines
+      from stdout. This function uses asynchronous I/O internally, so
+      the optional [sleep] parameter is provided as a means to pause
+      briefly if output is expected to be slow to avoid pegging the
+      CPU with a loop that does nothing. *)
+  val fold_with : ?sleep:float ->
+    ?sep:string ->
     (stdin, stdout, 'stderr) Cmd.t ->
     lines:string Seq.t ->
     f:('acc -> string -> 'acc) ->
@@ -64,7 +134,7 @@ let read_f stream t = In_channel.input_all (stream t)
 let lines_f stream t = In_channel.input_lines (stream t)
 let fold_f stream f init t = In_channel.fold_lines f init (stream t)
 
-let bufsz = 512
+let bufsz = 128
 
 let read_both_proc t =
   let buf_out = Bytes.create bufsz
@@ -109,7 +179,7 @@ let fold_both_proc ?(sleep=0.) t ~f ~init =
     | Some line -> go_one (f acc (get_res stream line)) stream in
   go init (stdout t) (stderr t)
 
-let fold_with_proc ?(sep="\n") t ~lines ~f ~init =
+let fold_with_proc ?(sleep=0.) ?(sep="\n") t ~lines ~f ~init =
   let write_line line lines =
     match Out_channel.output_string (stdin t) line with
     | exception Sys_blocked_io -> Seq.cons line lines
@@ -124,7 +194,9 @@ let fold_with_proc ?(sep="\n") t ~lines ~f ~init =
       | Seq.Cons (line, tl) -> Some (write_line line tl) in
     match In_channel.input_line (stdout t) with
     | exception Sys_blocked_io -> go lines_opt' acc
-    | None -> acc
+    | None ->
+      if sleep > 0. then (Unix.sleepf sleep; acc)
+      else acc
     | Some line ->
       go lines_opt' (f acc line) in
   go (Some lines) init
@@ -178,7 +250,7 @@ module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
     let cmd' = no_block @@ pipe_out @@ pipe_err cmd in
     exec cmd' ~f:(fold_both_proc ?sleep ~f ~init)
 
-  let fold_with ?sep cmd ~lines ~f ~init =
+  let fold_with ?sleep ?sep cmd ~lines ~f ~init =
     exec (cmd |> pipe_in |> pipe_out |> no_block)
-      ~f:(fold_with_proc ?sep ~lines ~f ~init)
+      ~f:(fold_with_proc ?sleep ?sep ~lines ~f ~init)
 end

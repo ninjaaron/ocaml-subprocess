@@ -152,7 +152,11 @@ end
 (** The type {!type:t} represents a process which may still be
     running. Some of the higher-level functions don't expose it
     directly, but almost everything else is implemented in terms of
-    this type. *)
+    this type.
+
+    Apply [()] to the [close] property to close any managed file
+    descriptors and wait for the process to exit.
+*)
 type ('stdin, 'stdout, 'stderr) t =
   { pid : int
   ; cmd : ('stdin, 'stdout, 'stderr) Cmd.t
