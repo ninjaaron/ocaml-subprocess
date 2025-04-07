@@ -99,9 +99,11 @@ module TestExceptionsInterface = struct
       let& proc3 = cmd ["cat"] |> channel_in (stdout proc2) |> pipe_out in
       let& proc4 =
         cmd ["tr"; "A-Z"; "a-z"] |> channel_in (stdout proc3) |> pipe_out in
-      In_channel.input_lines (stdout proc4) in
+      let& proc5 =
+        cmd ["tr"; "a-z"; "A-Z"] |> channel_in (stdout proc4) |> pipe_out in
+      In_channel.input_lines (stdout proc5) in
     Printf.printf "%S x %n\n" (List.hd lines) (List.length lines);
-    [%expect {| "foo" x 99999 |}]
+    [%expect {| "FOO" x 99999 |}]
 
   let%expect_test "test joined" =
     let n_lines = lines_joined out_and_err |> List.length in
@@ -112,7 +114,78 @@ module TestExceptionsInterface = struct
     let (out, err) = lines_both out_and_err in
     Printf.printf "out: %d, err: %d" (List.length out) (List.length err);
     [%expect {| out: 200, err: 100 |}]
+
+  let%expect_test "test fold_joined" =
+    let out, err = fold_joined out_and_err ~init:(0, 0)
+        ~f:(fun (out, err) line ->
+            if String.starts_with ~prefix:"out" line then out + 1, err
+            else out, err+1) in
+    Printf.printf "out: %d, err: %d" out err;
+    [%expect {| out: 200, err: 100 |}]
+      
+  let%expect_test "test fold_both" =
+    let out, err = fold_both out_and_err ~init:(0, 0)
+        ~f:(fun (out, err) -> function
+            | Ok _ -> out + 1, err
+            | Error _ -> out, err + 1) in
+    Printf.printf "out: %d, err: %d" out err;
+    [%expect {| out: 200, err: 100 |}]
+                              
 end
 
 module TestResultsInterface = struct
+  open Subprocess.Results
+  let%expect_test "test exec" =
+    (match exec (out_and_err |> pipe_out |> devnull_err) ~f:(fun proc ->
+         In_channel.fold_lines (fun n _ -> n + 1) 0 (stdout proc)
+       ) with
+    | Ok n -> print_int n
+    | Error _ -> assert false);
+    [%expect {| 200 |}]
+
+  let%expect_test "test exec_joined" =
+    (match exec_joined out_and_err ~f:(fun proc ->
+         In_channel.fold_lines (fun n _ -> n + 1) 0 (stdout proc)
+       ) with
+    | Ok n -> print_int n
+    | Error _ -> assert false);
+    [%expect {| 300 |}]
+
+  let%expect_test "test error" =
+    let value = let& _ = non_zero in Ok () in
+    (match value with
+     | Ok () -> assert false
+     | Error ({cmd=Poly cmd'; _} as ex) ->
+       Format.printf "status: %d, %a"
+         (Exit.status_int ex)
+         Cmd.pp cmd');
+    [%expect {| status: 1, cmd(`false`) |}]
+
+end
+
+module TestUncheckedInterfase = struct
+  open Subprocess.Unchecked
+  let%expect_test "test exec" =
+    let ex, n = exec (out_and_err |> pipe_out |> devnull_err) ~f:(fun proc ->
+         In_channel.fold_lines (fun n _ -> n + 1) 0 (stdout proc)
+       ) in
+    print_int n;
+    [%expect {| 200 |}];
+    print_int (Exit.status_int ex);
+    [%expect {| 0 |}]
+
+  let%expect_test "test exec_joined" =
+    let ex, n = exec_joined out_and_err ~f:(fun proc ->
+         In_channel.fold_lines (fun n _ -> n + 1) 0 (stdout proc)
+       ) in
+    print_int n;
+    [%expect {| 300 |}];
+    print_int (Exit.status_int ex);
+    [%expect {| 0 |}]
+
+  let%expect_test "test error" =
+    let {cmd=Poly cmd'; _} as ex = run non_zero in
+    Format.printf "status: %d, %a" (Exit.status_int ex) Cmd.pp cmd';
+    [%expect {| status: 1, cmd(`false`) |}]
+
 end
