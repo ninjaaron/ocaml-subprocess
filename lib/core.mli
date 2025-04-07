@@ -194,7 +194,9 @@ val poll : ('stdin, 'stdout, 'stderr) t -> Exit.status option
 
     [env] is a list of strings with the format ["NAME=value"]. [block]
     may be set to [false] for non-blocking I/O on pipes. This one
-    setting is used with any pipes which are used for I/O.
+    setting is used with any pipes which are used for I/O. Remember to
+    catch [Sys_blocked_io] when doing I/O with any non-blocking pipes.
+
     Both [env] and [block] can also be set with combinators.
 *)
 val cmd : ?prog:string
@@ -203,42 +205,78 @@ val cmd : ?prog:string
   -> string list
   -> (stdin, stdout, stderr) Cmd.t
 
+(** redirect stdin to a pipe for writing. *)
 val pipe_in : (stdin, 'stdout, 'stderr) Cmd.t
   -> (pipe, 'stdout, 'stderr) Cmd.t
+
+(** redirect stdout to a pipe for reading. *)
 val pipe_out : ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, pipe, 'stderr) Cmd.t
+
+(** redirect stdout to a pipe for writing. *)
 val pipe_err : ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, pipe) Cmd.t
+
+(** redirect stdin to an in_channel. *)
 val channel_in : in_channel
   -> (stdin, 'stdout, 'stderr) Cmd.t
   -> (channel, 'stdout, 'stderr) Cmd.t
+
+(** redirect stdout to an out_channel. *)
 val channel_out : out_channel
   -> ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, channel, 'stderr) Cmd.t
+
+(** redirect stderr to an out_channel. *)
 val channel_err : out_channel
   -> ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, channel) Cmd.t
+
+(** redirect stdin to an named file. Similar to [<] in the shell. *)
 val file_in : string
   -> (stdin, 'stdout, 'stderr) Cmd.t
   -> (file, 'stdout, 'stderr) Cmd.t
+
+(** redirect stdout to an named file. Similar to [>] in the shell. *)
 val file_out : string
   -> ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, file, 'stderr) Cmd.t
+
+(** redirect stderr to an named file. Similar to [2>] in the shell. *)
 val file_err : string
   -> ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, file) Cmd.t
+
+(** redirect stdout to an named file for appending.
+    Similar to [>>] in the shell. *)
 val append_out : string
   -> ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, append, 'stderr) Cmd.t
+
+(** redirect stderr to an named file for appending.
+    Similar to [2>>] in the shell. *)
 val append_err : string
   -> ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, append) Cmd.t
+
+(** redirect stdout to /dev/null. similar to [> /dev/null] in the shell *)
 val devnull_out : ('stdin, stdout, 'stderr) Cmd.t
   -> ('stdin, devnull, 'stderr) Cmd.t
+
+(** redirect stderr to /dev/null. similar to [2> /dev/null] in the shell *)
 val devnull_err : ('stdin, 'stdout, stderr) Cmd.t
   -> ('stdin, 'stdout, devnull) Cmd.t
+
+(** Set additional environment variables. Variables are passed in as a
+    list of strings with the format ["NAME=value"].
+*)
 val env : string list
   -> ('stdin, 'stdout, 'stderr) Cmd.t
   -> ('stdin, 'stdout, 'stderr) Cmd.t
+
+(** Use non-blocking I/O on any pipes. When doing I/O with any such
+    channel, you must catch [Sys_blocked_io] in the event no data is
+    ready for reading.
+*)
 val no_block : ('stdin, 'stdout, 'stderr) Cmd.t
   -> ('stdin, 'stdout, 'stderr) Cmd.t
