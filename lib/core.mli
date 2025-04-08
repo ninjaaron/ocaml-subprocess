@@ -68,12 +68,6 @@ module Cmd : sig
     ; block : bool
     }
 
-  (** It's great to have lots of type constraints in this library, but
-      it becomes a pain for monadic binding if the exit type has so
-      many type parameters, so poly is a wrapper to hide all those
-      nasty type variables in Exit.t. *)
-  type poly = Poly : ('a, 'b, 'c) t -> poly
-
   (** obligatory pretty printer, for your debugging pleasure. *)
   val pp : Format.formatter -> ('a, 'b, 'c) t -> unit
   [@@ocaml.toplevel_printer]
@@ -98,11 +92,11 @@ module Exit : sig
       Still, could be useful if you're registering PIDs in a map or
       something and you want to act on items in the map based on the
       exit status. I don't know. Anyway, it's there if you want it. *)
-  type t =
+  type t = Exit : 
     { pid : int
-    ; cmd : Cmd.poly
+    ; cmd : ('a, 'b, 'c) Cmd.t
     ; status : status
-    }
+    } -> t
 
   (** Obligatory pretty printer, for your debugging pleasure. *)
   val pp : Format.formatter -> t -> unit

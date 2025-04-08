@@ -114,8 +114,6 @@ module Cmd = struct
 
   let show cmd =
     Format.asprintf "%a" pp cmd
-
-  type poly = Poly : ('a, 'b, 'c) T.t -> poly
 end
 
 module Exit = struct
@@ -129,19 +127,19 @@ module Exit = struct
     | WSIGNALED i -> "signaled", i
     | WSTOPPED i -> "stopped", i
 
-  type t =
+  type t = Exit :
     { pid : int
-    ; cmd : Cmd.poly
+    ; cmd : ('a, 'b, 'c) Cmd.t
     ; status : status
-    } 
+    } -> t
 
-  let status_int t =
+  let status_int (Exit t) =
     match t.status with
     | WEXITED i -> i
     | WSIGNALED i -> i
     | WSTOPPED i -> i
 
-  let pp out {pid; cmd=Cmd.Poly cmd; status} =
+  let pp out (Exit {pid; cmd; status}) =
     let label, code = unify_status status in
     Format.fprintf out "(@[%s: %d,@ pid: %i,@ %a@])"
       label code pid Cmd.pp cmd
@@ -149,16 +147,16 @@ module Exit = struct
   let show t =
     Format.asprintf "%a" pp t
 
-  let res (t, x) =
+  let res (Exit t, x) =
     match t.status with
     | WEXITED 0 -> Ok x
-    | _ -> Error t
+    | _ -> Error (Exit t)
 
   let string_error res = Result.map_error show  res
-  let exn (t, x) = 
+  let exn (Exit t, x) = 
     match t.status with
     | WEXITED 0 -> x
-    | _ -> raise (Subprocess_error (show t))
+    | _ -> raise (Subprocess_error (show (Exit t)))
 end
 
 module In = struct

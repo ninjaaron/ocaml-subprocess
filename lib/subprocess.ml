@@ -62,7 +62,26 @@ module Unchecked = struct
   include Core
 end
 
-let read_both_proc = Functor.read_both_proc
-let fold_both_proc = Functor.fold_both_proc
-let fold_with_proc = Functor.fold_with_proc
+exception Non_blocking_io_expected of string
+
+let () = Printexc.register_printer @@ function
+  | Non_blocking_io_expected s ->
+    Some ("Non-blocking I/O was expected, got: " ^ s)
+  | _ -> None
+
+let check_blocking t =
+  if t.cmd.block then raise @@ Non_blocking_io_expected (show t)
+
+let read_both_proc t =
+  check_blocking t;
+  Functor.read_both_proc t
+
+let fold_both_proc ?sleep t ~f ~init =
+  check_blocking t;
+  Functor.fold_both_proc ?sleep t ~f ~init
+
+let fold_with_proc ?sleep ?sep t ~lines ~f ~init =
+  check_blocking t;
+  Functor.fold_with_proc ?sleep ?sep t ~lines ~f ~init
+
 module Exec = Exec

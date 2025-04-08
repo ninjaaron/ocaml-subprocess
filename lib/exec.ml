@@ -92,7 +92,7 @@ let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
     in'.closer ();
     let pid, status = Unix.waitpid ~mode pid in
     out.closer (); err.closer ();
-    Exit.{pid; status; cmd=Cmd.Poly cmd} in
+    Exit.(Exit {pid; status; cmd}) in
   List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
   { pid
   ; cmd
@@ -124,7 +124,7 @@ let shared_pipe (Cmd.{args; stdin; env; block; _} as cmd) =
     in'.closer ();
     let pid, status = Unix.waitpid ~mode pid in
     out.closer (); err.closer ();
-    Exit.{pid; status; cmd=Cmd.Poly cmd} in
+    Exit.(Exit {pid; status; cmd}) in
   List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl ];
   { pid
   ; cmd={cmd with stdout=Pipe; stderr=Stdout}

@@ -155,10 +155,10 @@ module TestResultsInterface = struct
     let value = let& _ = non_zero in Ok () in
     (match value with
      | Ok () -> assert false
-     | Error ({cmd=Poly cmd'; _} as ex) ->
+     | Error (Exit {cmd; _} as ex) ->
        Format.printf "status: %d, %a"
          (Exit.status_int ex)
-         Cmd.pp cmd');
+         Cmd.pp cmd);
     [%expect {| status: 1, cmd(`false`) |}]
 
 end
@@ -184,8 +184,8 @@ module TestUncheckedInterfase = struct
     [%expect {| 0 |}]
 
   let%expect_test "test error" =
-    let {cmd=Poly cmd'; _} as ex = run non_zero in
-    Format.printf "status: %d, %a" (Exit.status_int ex) Cmd.pp cmd';
+    let Exit {cmd; _} as ex = run non_zero in
+    Format.printf "status: %d, %a" (Exit.status_int ex) Cmd.pp cmd;
     [%expect {| status: 1, cmd(`false`) |}]
 
 end

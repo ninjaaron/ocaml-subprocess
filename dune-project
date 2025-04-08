@@ -5,19 +5,19 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github ninjaaron/ocaml-subprocess))
 
-(authors "Author Name")
+(authors "Aaron Christianson")
 
-(maintainers "Maintainer Name")
+(maintainers "Aaron Christianson")
 
-(license LICENSE)
+(license Mozilla Public License, v. 2.0)
 
-(documentation https://url/to/documentation)
+(documentation https://github.com/ninjaaron/ocaml-subprocess)
 
 (package
  (name subprocess)
- (synopsis "A short synopsis")
+ (synopsis "Nice interfaces handling I/O with Unix commands")
  (description "A longer description")
  (depends ocaml dune)
  (tags
