@@ -10,8 +10,9 @@ homepage: "https://github.com/ninjaaron/ocaml-subprocess"
 doc: "https://github.com/ninjaaron/ocaml-subprocess"
 bug-reports: "https://github.com/ninjaaron/ocaml-subprocess/issues"
 depends: [
-  "ocaml"
+  "ocaml" {>= "5.1"}
   "dune" {>= "3.7"}
+  "ppx_expect" {with-test}
   "odoc" {with-doc}
 ]
 build: [

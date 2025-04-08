@@ -19,7 +19,7 @@
  (name subprocess)
  (synopsis "Nice interfaces handling I/O with Unix commands")
  (description "A longer description is in the README")
- (depends ocaml dune)
+ (depends (ocaml (>= 5.1)) dune (ppx_expect :with-test))
  (tags
   (unix processes io commands)))
 
