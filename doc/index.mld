@@ -23,7 +23,7 @@ The user is, of course free to do the equivalent of
 [/bin/sh -c "echo foo"], i.e.
 [Subprocess.cmd ["/bin/sh"; "-c"; "echo foo"]] but it's your own affair
 at that point--and you're probably better off using functions provided
-by the standard library or the [Unix] library at this point--but I
+by the standard library or the [Unix] library--but I
 believe you will find that {!Subprocess} provides a better way to do 
 most things.
 
@@ -37,11 +37,16 @@ with result types, the {!Subprocess.Results} module is provided to
 represent non-zero exit status as an [Error of] {!Subprocess.Exit.t}. A
 combinator is provided convert this to [Error of string] for better
 composition with other result types in the context of monadic binding.
+If you don't need the exit status at all, there is also a
+{!Subprocess.StringResults} module which only deals in [Error of
+string]
 
-However, I realize that a non-zero exit status is not always an error,
-and for this, the {!Subprocess.Unchecked} module is provided. This
-module is also useful if you are interested in the output of a process
-regardless of the exit status.
+I consider treating non-zero exit status as an error to be a "sane
+default" like using [set -eo pipefail] in a bash script is a sane
+default. However, I realize that a non-zero exit status is not always an
+error, and for this, the {!Subprocess.Unchecked} module is provided.
+This module is also useful if you are interested in the output of a
+process regardless of the exit status.
 
 {4 Cleanup is abstracted }
 
@@ -273,7 +278,7 @@ you have a handle to the process and any open pipes.
 
 {[
 # let& p1 = cmd ["echo"; "foo"] |> pipe_out in
-  let& _p2 = cmd ["tr"; "a-z"; "A-Z"] |> channel_in (stdout p1) in
+  let& p2 = cmd ["tr"; "a-z"; "A-Z"] |> channel_in (stdout p1) in
   ();;
 FOO
 - : unit = ()
