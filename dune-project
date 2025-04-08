@@ -11,16 +11,16 @@
 
 (maintainers "Aaron Christianson")
 
-(license Mozilla Public License, v. 2.0)
+(license MPL-2.0)
 
 (documentation https://github.com/ninjaaron/ocaml-subprocess)
 
 (package
  (name subprocess)
  (synopsis "Nice interfaces handling I/O with Unix commands")
- (description "A longer description")
+ (description "A longer description is in the README")
  (depends ocaml dune)
  (tags
-  (topics "to describe" your project)))
+  (unix processes io commands)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
