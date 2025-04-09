@@ -1,7 +1,15 @@
 {1 Subprocess: abstractions for IO with unix processes}
 
 {!Subprocess} is a module which attempts to make working with unix
-processes in OCaml safer and simpler (in that order). 
+processes in OCaml safer and simpler (in that order).
+
+This package can be installed with
+{{:https://ocaml.org/p/subprocess/latest}opam}.
+
+The project homepage is {:https://github.com/ninjaaron/ocaml-subprocess}.
+
+The API reference can be accessed by clicking literally any highlighted
+instance of the word {!Subprocess}, and there are a lot of those.
 
 {3 Safety features}
 
