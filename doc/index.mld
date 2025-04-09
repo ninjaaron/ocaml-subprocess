@@ -251,7 +251,7 @@ Several important things here.
   The function will take a handle to the process as input and will
   automatically close everything when the function exits.
 - [Subprocess.stdin] and [Subprocess.stdout] are functions which will
-  return [output_channel] and [input_channel] respectively if these
+  return [Stdlib.out_channel] and [Stdlib.in_channel] respectively if these
   streams have been set to [pipe]. As you might expect, there is also
   a [Subprocess.stderr] function for accessing the process's stderr.
   Trying to access a stream that is not a pipe with these functions is
