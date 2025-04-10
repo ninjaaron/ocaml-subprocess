@@ -405,9 +405,8 @@ operation and decide what action to take if I/O was not available on
 the channel you tried to communicate with.
 
 Another approach which is not technically non-blocking, but achieves
-the same thing is using [Unix.select]. {!Subprocess.read_both} uses
-this approach, and you may look at the source code in the repository
-you are curious how that might work. (It's defined in functor.ml)
+the same thing is using [Unix.select]. This would require using the
+Unix module to retrieve the file descriptors from the channels.
 
 Any helper function that ends with [_both] uses non-blocking I/O
 internally, though the helper function itself will block until all

@@ -72,9 +72,9 @@ let () = Printexc.register_printer @@ function
 let check_blocking t =
   if t.cmd.block then raise @@ Non_blocking_io_expected (show t)
 
-let read_both_proc t =
+let read_both_proc ?sleep t =
   check_blocking t;
-  Functor.read_both_proc t
+  Functor.read_both_proc ?sleep t
 
 let fold_both_proc ?sleep t ~f ~init =
   check_blocking t;

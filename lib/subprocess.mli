@@ -162,7 +162,7 @@ exception Non_blocking_io_expected of string
     as input and reads streams from each into a string, returning the
     pair of strings. Raises {!Non_blocking_io_expected} if I/O is
     blocking. *)
-val read_both_proc : ('stdin, pipe, pipe) t -> (string * string)
+val read_both_proc : ?sleep:float -> ('stdin, pipe, pipe) t -> (string * string)
 
 (** Takes a process handle where both stdout and stderr are set to pipe
     and folds over each. See {!fold_both} for more usage details.

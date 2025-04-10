@@ -70,14 +70,25 @@ module type S = sig
 
   (** Same as {!read_joined} but reads stdout and stderr as a separate
       strings streams, returning a pair of strings wrapped in the
-      ouput type.  *)
-  val read_both : ('stdin, stdout, stderr) Cmd.t -> (string * string) t
+      ouput type. This function uses asynchronous I/O internally, so the
+      optional [sleep] parameter is provided as a means to pause briefly
+      if output is expected to be slow to avoid pegging the CPU with a
+      loop that does nothing. *)
+  val read_both :
+    ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
+    (string * string) t
 
   (** Same as {!lines_joined} but reads stdout and stderr as a separate
       strings streams, returning a pair of string lists wrapped in the
-      ouput type.  *)
-  val lines_both : ('stdin, stdout, stderr) Cmd.t
-    -> (string list * string list) t
+      ouput type. This function uses asynchronous I/O internally, so the
+      optional [sleep] parameter is provided as a means to pause briefly
+      if output is expected to be slow to avoid pegging the CPU with a
+      loop that does nothing. *)
+  val lines_both :
+    ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
+    (string list * string list) t
 
   (** Execute the command. Do a left fold over the lines of output
       from the processe's stdout. Wraps the accumulated output in the
@@ -136,30 +147,32 @@ let fold_f stream f init t = In_channel.fold_lines f init (stream t)
 
 let bufsz = 128
 
-let read_both_proc t =
+let read_both_proc ?(sleep=0.) t =
   let buf_out = Bytes.create bufsz
   and buf_err = Bytes.create bufsz
   and collected_out = Buffer.create bufsz
   and collected_err = Buffer.create bufsz
-  and out = Unix.descr_of_in_channel (stdout t)
-  and err = Unix.descr_of_in_channel (stderr t) in
-  let rec go = function
-    | [] -> ()
-    | descriptors ->
-      let ready, _, _ = Unix.select
-          ~read:descriptors ~write:[] ~except:[] ~timeout:(-1.) in
-      let remove = List.filter ready ~f:(fun fd ->
-          let buf, col = if fd = out then buf_out, collected_out
-            else buf_err, collected_err in
-          match Unix.read fd ~buf ~pos:0 ~len:bufsz with
-          | 0 -> true 
-          | n ->
-            Buffer.add_subbytes col buf 0 n;
-            false) in
-      let descrs = List.filter descriptors ~f:(fun fd ->
-          not (List.mem fd ~set:remove)) in
-      go descrs in
-  go [out; err];
+  and out = stdout t
+  and err = stderr t in
+  let rec go (chan, buf, col) other =
+    match In_channel.input chan buf 0 bufsz with
+    | exception Sys_blocked_io ->
+      if sleep > 0. then Unix.sleepf sleep;
+      go other (chan, buf, col)
+    | 0 -> go_one other
+    | n ->
+      Buffer.add_subbytes col buf 0 n;
+      go other (chan, buf, col)
+  and go_one (chan, buf, col) =
+    match In_channel.input chan buf 0 bufsz with
+    | exception Sys_blocked_io ->
+      if sleep > 0. then Unix.sleepf sleep;
+      go_one (chan, buf, col)
+    | 0 -> ()
+    | n ->
+      Buffer.add_subbytes col buf 0 n;
+      go_one (chan, buf, col) in
+  go (out, buf_out, collected_out) (err, buf_err, collected_err);
   Buffer.(contents collected_out, contents collected_err)
 
 let fold_both_proc ?(sleep=0.) t ~f ~init =
@@ -230,16 +243,17 @@ module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
   let fold_joined cmd ~f ~init =
     exec_joined cmd ~f:(fold_f stdout f init)
 
-  let read_both cmd = exec ~f:read_both_proc @@ pipe_out @@ pipe_err cmd
+  let read_both ?sleep cmd =
+    exec ~f:(read_both_proc ?sleep) @@ pipe_out @@ pipe_err cmd
 
   let remove_trailing_newline s =
     let len = String.length s in
     if s.[len-1] = '\n' then String.sub ~pos:0 ~len:(len-1) s
     else s
 
-  let lines_both cmd =
+  let lines_both ?sleep cmd =
     let f t =
-      let out, err = read_both_proc t in
+      let out, err = read_both_proc ?sleep t in
       String.(
         split_on_char ~sep:'\n' (remove_trailing_newline out),
         split_on_char ~sep:'\n' (remove_trailing_newline err)) in
