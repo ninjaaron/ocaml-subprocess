@@ -64,7 +64,7 @@ module Cmd : sig
     ; stdin : 'stdin In.t
     ; stdout : 'stdout Out.t
     ; stderr : 'stderr Out.t
-    ; env : string array
+    ; env : string array option
     ; block : bool
     }
 
@@ -186,11 +186,12 @@ val wait : ?mode:Unix.wait_flag list
 (** Find out if your process has finished executing. *)
 val poll : ('stdin, 'stdout, 'stderr) t -> Exit.status option
 
-(** Helper funtions for constructing Cmd.t. The optional [prog]
+(** Helper functions for constructing Cmd.t. The optional [prog]
     argument is mainly for if you don't want your path to be searched
     for the executable.
 
-    [env] is a list of strings with the format ["NAME=value"]. [block]
+    [env] is a list of strings with the format ["NAME=value"] whose default
+    value is the current process' environment. [block]
     may be set to [false] for non-blocking I/O on pipes. This one
     setting is used with any pipes which are used for I/O. Remember to
     catch [Sys_blocked_io] when doing I/O with any non-blocking pipes.

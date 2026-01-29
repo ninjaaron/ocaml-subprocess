@@ -64,14 +64,12 @@ module Cmd = struct
          (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
       args
 
-  let pp_env out = function
-    | [||] -> ()
-    | env ->
-      let open Format in
-      fprintf out "env:[@[%a@]]"
-        (pp_print_array ~pp_sep:(fun out () -> fprintf out ";@ ")
-           (fun out arg -> fprintf out "%S" (arg_to_repr arg)))
-        env
+  let pp_env out env =
+    let open Format in
+    fprintf out "env:[@[%a@]]"
+      (pp_print_array ~pp_sep:(fun out () -> fprintf out ";@ ")
+         (fun out arg -> fprintf out "%S" (arg_to_repr arg)))
+      env
 
 
   module T = struct
@@ -80,7 +78,7 @@ module Cmd = struct
       ; stdin : 'stdin In.t
       ; stdout : 'stdout Out.t
       ; stderr : 'stderr Out.t
-      ; env : string array
+      ; env : string array option
       ; block : bool
       }
   end
@@ -106,8 +104,8 @@ module Cmd = struct
             ; "stdout", Out.show stdout
             ; "stderr", Out.show stderr];
     (match env with
-     | [||] -> ()
-     | _ ->
+     | None -> ()
+     | Some env ->
        Format.fprintf out ",@ @[%a@]" pp_env env);
     if not block then Format.fprintf out ",@ non-blocking";
     Format.fprintf out "@])"
@@ -204,7 +202,7 @@ let poll t =
   | 0, _ -> None
   | _, status -> Some status
 
-let cmd ?prog ?(env=[]) ?(block=true) args =
+let cmd ?prog ?env ?(block=true) args =
   if List.is_empty args then failwith "argument array must not be empty";
   let args = Array.of_list args in
   let prog = match prog with
@@ -214,7 +212,7 @@ let cmd ?prog ?(env=[]) ?(block=true) args =
       ; stdin = In.Stdin
       ; stdout = Out.Stdout
       ; stderr = Out.Stderr
-      ; env = Array.of_list env
+      ; env = Option.map Array.of_list env
       ; block = block
       }
 
@@ -234,5 +232,5 @@ let append_out s cmd = set_out (Append s) cmd
 let append_err s cmd = set_err (Append s) cmd
 let devnull_out cmd = set_out Devnull cmd
 let devnull_err cmd = set_err Devnull cmd
-let env env_list cmd = Cmd.{cmd with env=Array.of_list env_list}
+let env env_list cmd = Cmd.{cmd with env=Some (Array.of_list env_list)}
 let no_block cmd = Cmd.{cmd with block=false}
