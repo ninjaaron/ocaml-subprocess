@@ -74,7 +74,11 @@ module Stream = struct
 end
 
 let _create ~stdout ~stdin ~stderr ~env (prog, args) =
-  Unix.create_process_env ~prog ~env ~args ~stdout ~stdin ~stderr
+  match env with
+  | None ->
+      Unix.create_process ~prog ~args ~stdout ~stdin ~stderr
+  | Some env ->
+      Unix.create_process_env ~prog ~env ~args ~stdout ~stdin ~stderr
 
 let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
   let in', out, err =
