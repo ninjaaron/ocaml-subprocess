@@ -56,6 +56,7 @@ module Stream = struct
     | Stdin -> prep_fd_no_close Unix.stdin In.Stdin
     | Channel ic ->
       let fd = Unix.descr_of_in_channel ic in
+      Unix.clear_nonblock fd;
       prep_fd_no_close fd In.Channel
     | File s ->
       (match Unix.(openfile s ~mode:[O_RDONLY] ~perm:0) with
