@@ -114,7 +114,7 @@ module Pipes = struct
 
     let (let*) = Result.bind
     let (let&) cmd f = bind cmd ~f
-    include Core 
+    include Pipe
   end
 
   module StringResults = struct
@@ -134,7 +134,7 @@ module Pipes = struct
     let ( let* ) = Result.bind
     let ( let& ) cmd f = bind cmd ~f
 
-    include Core
+    include Pipe
   end
 
   module Unchecked = struct
@@ -146,6 +146,6 @@ module Pipes = struct
     let run cmd = let exit, () = run cmd in exit
     let write cmd ~input = let exit, () = write cmd ~input in exit
     let write_lines cmd ~input = let exit, () = write_lines cmd ~input in exit
-    include Core
+    include Pipe
   end
 end

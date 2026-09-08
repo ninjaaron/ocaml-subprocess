@@ -194,9 +194,9 @@ let pp out {pid; cmd; _} =
 let show t =
   Format.asprintf "%a" pp t
 
-let stdin = function |{stdin=In.Pipe oc; _} -> oc | _ -> assert false
-let stdout = function {stdout=Out.Pipe ic; _} -> ic | _ -> assert false
-let stderr = function {stderr=Out.Pipe ic; _} -> ic | _ -> assert false
+let stdin = function |{stdin=In.Pipe oc; _} -> oc | _ -> .
+let stdout = function {stdout=Out.Pipe ic; _} -> ic | _ -> .
+let stderr = function {stderr=Out.Pipe ic; _} -> ic | _ -> .
 
 let wait ?(mode = []) t = Unix.waitpid ~mode t.pid
 let poll t =
