@@ -1,13 +1,29 @@
 module Unix = UnixLabels
 
-type stdin
-type stdout
-type stderr
-type channel
-type devnull
-type file
-type append
-type pipe
+(*
+   These type constructors are never used, but they are necessary
+   later on for the definitions of the `stdin`, `stdout` and `stderr`
+   functions to work in a way that is compatible with OCaml 5.5.0
+
+   These are only used as phatom types, but if they are left abstract,
+   5.5.0 decided that refuation cases might be undecidable because
+   they could be aliased to something else in another scope, and
+   therefore pattern matching on In.t for ony one variant could be
+   unsound. Adding a constructor makes these proper nominal types, so
+   the refutation of other cases is successful.
+
+   This was not a problem in 5.4.1, but I suppose there was a slight
+   chance of unsoundness (not in this case, but in general), and we
+   don't want that.
+   *)
+type stdin = Stdin [@warning "-37"]
+type stdout = Stdout [@warning "-37"]
+type stderr = Stderr [@warning "-37"]
+type channel = Channel [@warning "-37"]
+type devnull = Devnull [@warning "-37"]
+type file = File [@warning "-37"]
+type append = Append [@warning "-37"]
+type pipe = Pipe [@warning "-37"]
 
 exception Subprocess_error of string
 
@@ -194,9 +210,9 @@ let pp out {pid; cmd; _} =
 let show t =
   Format.asprintf "%a" pp t
 
-let stdin = function |{stdin=In.Pipe oc; _} -> oc | _ -> .
-let stdout = function {stdout=Out.Pipe ic; _} -> ic | _ -> .
-let stderr = function {stderr=Out.Pipe ic; _} -> ic | _ -> .
+let stdin {stdin=In.Pipe oc; _} = oc
+let stdout {stdout=Out.Pipe ic; _} = ic
+let stderr {stderr=Out.Pipe ic; _} = ic
 
 let wait ?(mode = []) t = Unix.waitpid ~mode t.pid
 let poll t =
