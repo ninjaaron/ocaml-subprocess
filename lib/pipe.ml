@@ -5,15 +5,24 @@ module Cmd = struct
     | Single : ('i, 'o, 'e) Cmd.t -> ('i, 'o, 'e) t
     | Pipe : ('i, stdout, _) Cmd.t * (stdin, 'o, 'e) t -> ('i, 'o, 'e) t
 
-  let rec pp_args : type i o e. Format.formatter -> (i, o, e) t -> unit =
+  let pp out =
     let open Format in
-    fun out -> function
-      | Single cmd -> fprintf out "@[%a@]" Cmd.pp_args (snd cmd.Cmd.args)
-      | Pipe (cmd, t) ->
-        pp_args out (Single cmd);
-        fprintf out "@ | @ ";
-        pp_args out t
-        
+    function
+    | Single cmd -> Cmd.pp out cmd
+    | Pipe (cmd, t) ->
+      fprintf out "cmd(@[`";
+      Cmd.pp_inner ~show_stdin:true ~show_stdout:false out cmd;
+      fprintf out "@ | ";
+      let rec loop = function
+        | Single cmd ->
+          Cmd.pp_inner ~show_stdin:false ~show_stdout:true out cmd;
+          fprintf out "`@])"
+        | Pipe (cmd, t) ->
+          Cmd.pp_inner ~show_stdin:false ~show_stdout:false out cmd;
+          fprintf out "@ | ";
+          loop t in
+      loop t
+
 end
 
 let cmd ?prog ?env ?block args = Cmd.Single (Core.cmd ?prog ?env ?block args)
@@ -40,10 +49,13 @@ let rec set_out
   | Pipe (cmd, t) -> Pipe (cmd, set_out out_t t)
 
 let rec set_err
-  : type i o. 'e Core.Cmd.Out.t -> (i, o, stderr) Cmd.t -> (i, o, 'e) Cmd.t =
+  : type i o e. e Core.Cmd.Out.t -> (i, o, stderr) Cmd.t -> (i, o, e) Cmd.t =
   fun out_t -> function
   | Single cmd -> Single Core.Cmd.{cmd with stderr = out_t}
-  | Pipe (cmd, t) -> Pipe (cmd, set_err out_t t)
+  | Pipe (cmd, t) ->
+    match cmd.stderr with
+    | Stderr -> Pipe({cmd with stderr=out_t}, set_err out_t t)
+    | _ -> Pipe(cmd, set_err out_t t)
 
 let pipe_in t = set_in Pipe t
 let pipe_out t = set_out Pipe t

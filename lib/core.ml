@@ -84,9 +84,10 @@ module Cmd = struct
     | [] -> ()
     | env ->
       let open Format in
-      fprintf out "@[%a@]"
+      fprintf out "@[%a@]@ "
         (pp_print_list ~pp_sep:(fun out () -> fprintf out "@ ")
-           (fun out (key, value)  -> fprintf out "%s=%S" key value))
+           (fun out (key, value)  ->
+              fprintf out "%s=%s" key (arg_to_repr value)))
         env
 
   module T = struct
@@ -101,52 +102,54 @@ module Cmd = struct
   end
   include T
 
-  let pp_io out streams =
-    let streams' = ListLabels.filter_map streams
-        ~f:(fun (default, s) ->
-            if s = default then None else Some (default ^ ": " ^ s)) in
-    if List.is_empty streams' then ()
-    else Format.fprintf out ",@ ";
-    Format.(pp_print_list
-              ~pp_sep:(fun out () -> Format.fprintf out ",@ ")
-              Format.pp_print_string
-              out
-              streams')
-  (* let pp_stdin : type a. Format.formatter -> a In.t -> unit = fun out -> *)
-  (*   let open Format in *)
-  (*   function *)
-  (*   | In.Stdin -> () *)
-  (*   | In.Channel _ -> fprintf out "@ | " *)
-  (*   | In.File name -> fprintf out " %s@ > " name *)
-  (*   | In.Pipe -> fprintf out " <pipe>@ > " *)
+  let pp_stdin : type a. Format.formatter -> a In.t -> unit = fun out ->
+    let open Format in
+    function
+    | In.Stdin -> ()
+    | Channel _ -> fprintf out "@ < <channel>"
+    | File name -> fprintf out "@ < %s" name
+    | Pipe -> fprintf out "@ < <pipe>"
 
-  (* let pp_stdout : type a. Format.formatter -> a Out.t -> unit = fun out -> *)
-  (*   let open Format in *)
-  (*   function *)
-  (*   | Out.Stdout -> () *)
-  (*   | Out.Stderr -> " 1>&2" *)
-  (*   | In.Channel _ -> fprintf out " <channel>@ | " *)
-  (*   | In.File name -> fprintf out "%s@ > " name *)
-  (*   | In.Pipe -> fprintf out "<pipe>@ | " *)
+  let pp_stdout : type a. Format.formatter -> a Out.t -> unit = fun out ->
+    let open Format in
+    function
+    | Out.Stdout -> ()
+    | Stderr -> fprintf out "@ >&2"
+    | Channel _ -> fprintf out "@ > <channel>"
+    | File name -> fprintf out "@ > %s" name
+    | Append name -> fprintf out "@ >> %s" name
+    | Devnull -> fprintf out "@ > /dev/null"
+    | Pipe -> fprintf out "@ > <pipe>"
 
-  (* let pp_inner ~show out {args; stdin; stdout; stderr; env; _} = *)
-  (*   let open Format in *)
-  (*   pp_env out env; *)
+  let pp_stderr : type a. Format.formatter -> a Out.t -> unit = fun out ->
+    let open Format in
+    function
+    | Out.Stderr -> ()
+    | Stdout -> fprintf out "@ 2>&1"
+    | Channel _ -> fprintf out "@ 2> <channel>"
+    | File name -> fprintf out "@ 2> %s" name
+    | Append name -> fprintf out "@ 2>> %s" name
+    | Devnull -> fprintf out "@ 2> /dev/null"
+    | Pipe -> fprintf out "@ 2> <pipe>"
 
-  (*   fprintf out "@[%a@]" pp_args (snd args); *)
+  let pp_inner
+      ~show_stdout
+      ~show_stdin
+      out
+      {args; stdin; stdout; stderr; env; _}
+    = let open Format in
+    pp_env out env;
+    fprintf out "@[%a@]" pp_args (snd args);
+    if show_stdout then
+      pp_stdout out stdout;
+    if show_stdin then
+      pp_stdin out stdin;
+    pp_stderr out stderr
 
   let pp out t =
-    let {args; stdin; stdout; stderr; env; block} = t in
-    Format.fprintf out "cmd(@[@[`%a@`]%a"
-      pp_args (snd args)
-      pp_io [ "stdin", In.show stdin
-            ; "stdout", Out.show stdout
-            ; "stderr", Out.show stderr];
-    (match env with
-     | [] -> ()
-     | _ ->
-       Format.fprintf out ",@ @[%a@]" pp_env env);
-    if not block then Format.fprintf out ",@ non-blocking";
+    Format.fprintf out "cmd(@[`%a`"
+      (pp_inner ~show_stdout:true ~show_stdin:true) t;
+    if not t.block then Format.fprintf out ",@ non-blocking";
     Format.fprintf out "@])"
 
   let show cmd =

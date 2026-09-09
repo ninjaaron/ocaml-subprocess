@@ -68,10 +68,12 @@ module Cmd : sig
     ; block : bool
     }
 
-  val arg_to_repr : string -> string
-  val pp_args : Format.formatter -> string array -> unit
-  val pp_env : Format.formatter -> (string * string) list -> unit
-  val pp_io : Format.formatter -> (string * string) list -> unit
+  val pp_inner
+    : show_stdout:bool
+    -> show_stdin:bool
+    -> Format.formatter
+    -> ('i, 'o, 'e) t
+    -> unit
 
   (** obligatory pretty printer, for your debugging pleasure. *)
   val pp : Format.formatter -> ('a, 'b, 'c) t -> unit
