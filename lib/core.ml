@@ -75,20 +75,19 @@ module Cmd = struct
 
   let pp_args out args =
     let open Format in
-    fprintf out "`%a`" 
-      (pp_print_array ~pp_sep:(fun out () -> fprintf out "@ ")
-         (fun out arg -> fprintf out "%s" (arg_to_repr arg)))
+    pp_print_array ~pp_sep:(fun out () -> fprintf out "@ ")
+      (fun out arg -> fprintf out "%s" (arg_to_repr arg))
+      out
       args
 
   let pp_env out = function
-    | [||] -> ()
+    | [] -> ()
     | env ->
       let open Format in
-      fprintf out "env:[@[%a@]]"
-        (pp_print_array ~pp_sep:(fun out () -> fprintf out ";@ ")
-           (fun out arg -> fprintf out "%S" (arg_to_repr arg)))
+      fprintf out "@[%a@]"
+        (pp_print_list ~pp_sep:(fun out () -> fprintf out "@ ")
+           (fun out (key, value)  -> fprintf out "%s=%S" key value))
         env
-
 
   module T = struct
     type ('stdin, 'stdout, 'stderr) t =
@@ -96,7 +95,7 @@ module Cmd = struct
       ; stdin : 'stdin In.t
       ; stdout : 'stdout Out.t
       ; stderr : 'stderr Out.t
-      ; env : string array
+      ; env : (string * string) list
       ; block : bool
       }
   end
@@ -113,16 +112,38 @@ module Cmd = struct
               Format.pp_print_string
               out
               streams')
+  (* let pp_stdin : type a. Format.formatter -> a In.t -> unit = fun out -> *)
+  (*   let open Format in *)
+  (*   function *)
+  (*   | In.Stdin -> () *)
+  (*   | In.Channel _ -> fprintf out "@ | " *)
+  (*   | In.File name -> fprintf out " %s@ > " name *)
+  (*   | In.Pipe -> fprintf out " <pipe>@ > " *)
+
+  (* let pp_stdout : type a. Format.formatter -> a Out.t -> unit = fun out -> *)
+  (*   let open Format in *)
+  (*   function *)
+  (*   | Out.Stdout -> () *)
+  (*   | Out.Stderr -> " 1>&2" *)
+  (*   | In.Channel _ -> fprintf out " <channel>@ | " *)
+  (*   | In.File name -> fprintf out "%s@ > " name *)
+  (*   | In.Pipe -> fprintf out "<pipe>@ | " *)
+
+  (* let pp_inner ~show out {args; stdin; stdout; stderr; env; _} = *)
+  (*   let open Format in *)
+  (*   pp_env out env; *)
+
+  (*   fprintf out "@[%a@]" pp_args (snd args); *)
 
   let pp out t =
     let {args; stdin; stdout; stderr; env; block} = t in
-    Format.fprintf out "cmd(@[@[%a@]%a"
+    Format.fprintf out "cmd(@[@[`%a@`]%a"
       pp_args (snd args)
       pp_io [ "stdin", In.show stdin
             ; "stdout", Out.show stdout
             ; "stderr", Out.show stderr];
     (match env with
-     | [||] -> ()
+     | [] -> ()
      | _ ->
        Format.fprintf out ",@ @[%a@]" pp_env env);
     if not block then Format.fprintf out ",@ non-blocking";
@@ -230,8 +251,8 @@ let cmd ?prog ?(env=[]) ?(block=true) args =
       ; stdin = In.Stdin
       ; stdout = Out.Stdout
       ; stderr = Out.Stderr
-      ; env = Array.of_list env
-      ; block = block
+      ; env
+      ; block
       }
 
 let set_in in_t cmd = Cmd.{cmd with stdin=in_t}
@@ -250,5 +271,5 @@ let append_out s cmd = set_out (Append s) cmd
 let append_err s cmd = set_err (Append s) cmd
 let devnull_out cmd = set_out Devnull cmd
 let devnull_err cmd = set_err Devnull cmd
-let env env_list cmd = Cmd.{cmd with env=Array.of_list env_list}
+let env env cmd = Cmd.{cmd with env}
 let no_block cmd = Cmd.{cmd with block=false}

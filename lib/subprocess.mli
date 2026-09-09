@@ -187,7 +187,7 @@ val fold_with_proc : ?sleep:float ->
 module Pipes : sig
   include module type of Pipe
 
-  include S with type 'a t := 'a
+  include S with type 'a return := 'a
 
   (**
      [let&] is a binding operator which wrappes {!exec} to provide a
@@ -216,7 +216,7 @@ module Pipes : sig
         {!module-Core} is included here to avoid having to open both
         [Subprocess] and [Results].  *)
 
-    include S with type 'a t := ('a, Exit.t) result
+    include S with type 'a return := ('a, Exit.t) result
 
     (** Similar to {!exec}, but composes better for monadic binding. *)
     val bind : 
@@ -259,7 +259,7 @@ module Pipes : sig
         composes better. {!module-Core} is included here to avoid
         having to open both [Subprocess] and [StringResults].  *)
 
-    include S with type 'a t := ('a, string) result
+    include S with type 'a return := ('a, string) result
 
     (** Similar to {!exec}, but composes better for monadic binding. *)
     val bind : 
@@ -297,7 +297,7 @@ module Pipes : sig
         {!module-Core} is included here to avoid having to open both
         [Subprocess] and [Unchecked].  *)
 
-    include S with type 'a t = Exit.t * 'a
+    include S with type 'a return := Exit.t * 'a
 
     (** Execute the command and wait for it to exit, returning an
         instance of {!Exit.t} *)

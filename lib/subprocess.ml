@@ -89,7 +89,7 @@ module Exec = Exec
 module Pipes = struct
   include Pipe
   include Make(struct
-      type 'a t = 'a
+      type 'a return = 'a
       let exec cmd ~f = Exit.exn (Exec.in_context cmd ~f)
       let exec_joined cmd ~f = Exit.exn (Exec.shared_context cmd ~f)
     end)
@@ -98,7 +98,7 @@ module Pipes = struct
 
   module Results = struct
     include Make(struct
-        type 'a t = ('a, Exit.t) result
+        type 'a return = ('a, Exit.t) result
         let exec cmd ~f = Exit.res (Exec.in_context cmd ~f)
         let exec_joined cmd ~f = Exit.res (Exec.shared_context cmd ~f)
       end)
@@ -119,7 +119,7 @@ module Pipes = struct
 
   module StringResults = struct
     include Make(struct
-        type 'a t = ('a, string) result
+        type 'a return = ('a, string) result
         let exec cmd ~f = Exit.string_error @@ Results.exec cmd ~f
         let exec_joined cmd ~f = Exit.string_error @@ Results.exec_joined cmd ~f
       end)
@@ -139,7 +139,7 @@ module Pipes = struct
 
   module Unchecked = struct
     include Make(struct
-        type 'a t = Exit.t * 'a
+        type 'a return = Exit.t * 'a
         let exec = Exec.in_context
         let exec_joined = Exec.shared_context
       end)

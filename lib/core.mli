@@ -64,9 +64,14 @@ module Cmd : sig
     ; stdin : 'stdin In.t
     ; stdout : 'stdout Out.t
     ; stderr : 'stderr Out.t
-    ; env : string array
+    ; env : (string * string) list
     ; block : bool
     }
+
+  val arg_to_repr : string -> string
+  val pp_args : Format.formatter -> string array -> unit
+  val pp_env : Format.formatter -> (string * string) list -> unit
+  val pp_io : Format.formatter -> (string * string) list -> unit
 
   (** obligatory pretty printer, for your debugging pleasure. *)
   val pp : Format.formatter -> ('a, 'b, 'c) t -> unit
@@ -190,15 +195,16 @@ val poll : ('stdin, 'stdout, 'stderr) t -> Exit.status option
     argument is mainly for if you don't want your path to be searched
     for the executable.
 
-    [env] is a list of strings with the format ["NAME=value"]. [block]
-    may be set to [false] for non-blocking I/O on pipes. This one
-    setting is used with any pipes which are used for I/O. Remember to
-    catch [Sys_blocked_io] when doing I/O with any non-blocking pipes.
+    [env] is an association list of keys and values (both
+    strings). [block] may be set to [false] for non-blocking I/O on
+    pipes. This one setting is used with any pipes which are used for
+    I/O. Remember to catch [Sys_blocked_io] when doing I/O with any
+    non-blocking pipes.
 
     Both [env] and [block] can also be set with combinators.
 *)
 val cmd : ?prog:string
-  -> ?env:string list
+  -> ?env:(string * string) list
   -> ?block:bool
   -> string list
   -> (stdin, stdout, stderr) Cmd.t
@@ -268,7 +274,7 @@ val devnull_err : ('stdin, 'stdout, stderr) Cmd.t
 (** Set additional environment variables. Variables are passed in as a
     list of strings with the format ["NAME=value"].
 *)
-val env : string list
+val env : (string * string) list
   -> ('stdin, 'stdout, 'stderr) Cmd.t
   -> ('stdin, 'stdout, 'stderr) Cmd.t
 

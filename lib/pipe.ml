@@ -4,15 +4,22 @@ module Cmd = struct
   type (_, _, _) t =
     | Single : ('i, 'o, 'e) Cmd.t -> ('i, 'o, 'e) t
     | Pipe : ('i, stdout, _) Cmd.t * (stdin, 'o, 'e) t -> ('i, 'o, 'e) t
+
+  let rec pp_args : type i o e. Format.formatter -> (i, o, e) t -> unit =
+    let open Format in
+    fun out -> function
+      | Single cmd -> fprintf out "@[%a@]" Cmd.pp_args (snd cmd.Cmd.args)
+      | Pipe (cmd, t) ->
+        pp_args out (Single cmd);
+        fprintf out "@ | @ ";
+        pp_args out t
+        
 end
 
-module C = Cmd
-
-
-let cmd ?prog ?env ?block args = C.Single (Core.cmd ?prog ?env ?block args)
+let cmd ?prog ?env ?block args = Cmd.Single (Core.cmd ?prog ?env ?block args)
 
 let [@tail_mod_cons] rec append
-  : type i o e. (i, stdout, _) C.t -> (stdin, o, e) C.t -> (i, o, e) C.t =
+  : type i o e. (i, stdout, _) Cmd.t -> (stdin, o, e) Cmd.t -> (i, o, e) Cmd.t =
   fun t1 t2 ->
   match t1 with
   | Single cmd -> Pipe (cmd, t2)
@@ -21,19 +28,19 @@ let [@tail_mod_cons] rec append
 let (@|) = append
 
 let set_in
-  : type o e. 'i Core.Cmd.In.t  -> (stdin, o, e) C.t -> ('i, o, e) C.t =
+  : type o e. 'i Core.Cmd.In.t  -> (stdin, o, e) Cmd.t -> ('i, o, e) Cmd.t =
   fun in_t -> function
   | Single cmd -> Single Core.Cmd.{cmd with stdin=in_t}
   | Pipe (cmd, t) -> Pipe (Core.Cmd.{cmd with stdin=in_t}, t)
 
 let rec set_out
-  : type i e. 'o Core.Cmd.Out.t -> (i, stdout, e) C.t -> (i, 'o, e) C.t =
+  : type i e. 'o Core.Cmd.Out.t -> (i, stdout, e) Cmd.t -> (i, 'o, e) Cmd.t =
   fun out_t -> function
   | Single cmd -> Single Core.Cmd.{cmd with stdout=out_t}
   | Pipe (cmd, t) -> Pipe (cmd, set_out out_t t)
 
 let rec set_err
-  : type i o. 'e Core.Cmd.Out.t -> (i, o, stderr) C.t -> (i, o, 'e) C.t =
+  : type i o. 'e Core.Cmd.Out.t -> (i, o, stderr) Cmd.t -> (i, o, 'e) Cmd.t =
   fun out_t -> function
   | Single cmd -> Single Core.Cmd.{cmd with stderr = out_t}
   | Pipe (cmd, t) -> Pipe (cmd, set_err out_t t)
@@ -52,18 +59,19 @@ let append_err s t = set_err (Append s) t
 let devnull_out t = set_out Devnull t
 let devnull_err t = set_err Devnull t
 
-let rec env : type i o e. string list -> (i, o, e) C.t -> (i, o, e) C.t =
-  fun env_list -> function
+let rec env
+  : type i o e. (string * string) list -> (i, o, e) Cmd.t -> (i, o, e) Cmd.t
+  = fun env_list -> function
     | Single cmd -> Single (Core.env env_list cmd)
     | Pipe (t1, t2) -> Pipe (Core.env env_list t1, env env_list t2)
 
 let no_block t =
-  let rec unblock_output : type i o e. (i, o, e) C.t -> (i, o, e) C.t =
+  let rec unblock_output : type i o e. (i, o, e) Cmd.t -> (i, o, e) Cmd.t =
     function
     | Single cmd -> Single (no_block cmd)
     | Pipe (t1, t2) -> Pipe(t1, unblock_output t2) in
   match t with
-  | C.Single cmd -> C.Single (no_block cmd)
+  | Cmd.Single cmd -> Cmd.Single (no_block cmd)
   | Pipe (cmd, t) -> Pipe (no_block cmd, unblock_output t)
 
 module T = struct
@@ -88,23 +96,22 @@ let rec stderr : type i o. (i, o, pipe) t -> in_channel =
   | Single proc -> Core.stderr proc
   | Pipe (_, t) -> stderr t
 
-
 module Exec = struct
 
   let rec close
-    : type i o e. ?mode:Unix.wait_flag list -> (i, o, e) t-> Exit.t =
-    fun ?mode -> function
-    | Single proc -> proc.close ?mode ()
-    | Pipe (proc, t2) ->
-      let e = proc.close ?mode () in
-      match Exit.status_int e with
-      | 0 -> close ?mode t2
-      | _ -> ignore (close ?mode t2); e
-  let _ = Exec.exec
+    : type i o e. ?mode:Unix.wait_flag list -> (i, o, e) t-> Exit.t
+    = fun ?mode -> function
+      | Single proc -> proc.close ?mode ()
+      | Pipe (proc, t2) ->
+        let e = proc.close ?mode () in
+        match Exit.status_int e with
+        | 0 -> close ?mode t2
+        | _ -> ignore (close ?mode t2); e
 
   let exec tt =
-    let rec loop : type o e. in_channel -> (stdin, o, e) C.t -> (channel, o, e) t =
-      fun ic -> function
+    let rec loop
+      : type o e. in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
+      = fun ic -> function
         | Single cmd -> Single (Exec.exec @@ Core.channel_in ic cmd)
         | Pipe (cmd, t) ->
           let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
@@ -126,14 +133,15 @@ module Exec = struct
       raise e
 
   let shared_pipe tt =
-    let rec loop : in_channel -> (stdin, stdout, stderr) C.t -> (channel, pipe, stdout) t =
-      fun ic -> function
+    let rec loop
+      : in_channel -> (stdin, stdout, stderr) Cmd.t -> (channel, pipe, stdout) t
+      = fun ic -> function
         | Single cmd -> Single (Exec.shared_pipe @@ Core.channel_in ic cmd)
         | Pipe (cmd, t) ->
           let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
           Pipe(proc, loop (Core.stdout proc) t) in
     match tt with
-    | C.Single cmd -> Single (Exec.shared_pipe cmd)
+    | Cmd.Single cmd -> Single (Exec.shared_pipe cmd)
     | Pipe (cmd, p2) ->
       let proc = Exec.exec (Core.pipe_out cmd) in
       let out = Core.stdout proc in
@@ -153,18 +161,18 @@ end
 module Unix = UnixLabels
 open StdLabels
 module type Exec_t = sig
-  type 'a t
+  type 'a return
 
   val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
-    f:(('stdin, 'stdout, 'stderr) T.t -> 'a) ->
-    'a t
+    f:(('stdin, 'stdout, 'stderr) t -> 'a) ->
+    'a return
   val exec_joined : ('stdin, stdout, stderr) Cmd.t ->
-    f:(('stdin, pipe, stdout) T.t -> 'a) ->
-    'a t
+    f:(('stdin, pipe, stdout) t -> 'a) ->
+    'a return
 end
 
 module type S = sig
-  type 'a t
+  type 'a return
 
   (** Execute a command in, where a handle to the created process will
       be availbe as the sole input parameter of the function [f]. When
@@ -173,51 +181,51 @@ module type S = sig
       wrapped in the output type.  *)
   val exec : ('stdin, 'stdout, 'stderr) Cmd.t ->
     f:(('stdin, 'stdout, 'stderr) T.t -> 'a) ->
-    'a t
+    'a return
 
   (** Same as {!exec}, but stdout and stderr are redirected to the
       same pipe. This is similar to [2>&1 |] in the shell.  *)
   val exec_joined : ('stdin, stdout, stderr) Cmd.t ->
     f:(('stdin, pipe, stdout) T.t -> 'a) ->
-    'a t
+    'a return
 
   (** Execute the command and wait for it to exit, returning [()]
       wrapped in the output type.  *)
-  val run : ('stdin, 'stdout, 'stderr) Cmd.t -> unit t
+  val run : ('stdin, 'stdout, 'stderr) Cmd.t -> unit return
 
   (** Execute the command and write the [input] string to the stdin of
       the process.  *)
   val write : (stdin, 'stdout, 'stderr) Cmd.t ->
-    input:string -> unit t
+    input:string -> unit return
 
   (** Execute the command and write the [input] [Seq.t] instance to
       the stdin of the process, separated by newline characters. If
       you want to read from stdout while writing, use
       {!fold_with}.  *)
   val write_lines : (stdin, 'stdout, 'stderr) Cmd.t ->
-    input:string Seq.t -> unit t
+    input:string Seq.t -> unit return
 
   (** Execute the command and read its stdout into a string wrapped in
       the output type.  *)
-  val read : ('stdin, stdout, 'stderr) Cmd.t -> string t
+  val read : ('stdin, stdout, 'stderr) Cmd.t -> string return
 
   (** Same as {!read} but with a list of lines wrapped in the output
      type.  *)
-  val lines : ('stdin, stdout, 'stderr) Cmd.t -> string list t
+  val lines : ('stdin, stdout, 'stderr) Cmd.t -> string list return
 
   (** Same as {!read}, but reads stderr rather than stdout. *)
-  val read_err : ('stdin, 'stdout, stderr) Cmd.t -> string t
+  val read_err : ('stdin, 'stdout, stderr) Cmd.t -> string return
 
   (** Same as {!lines}, but reads stderr rather than stdout. *)
-  val lines_err : ('stdin, 'stdout, stderr) Cmd.t -> string list t
+  val lines_err : ('stdin, 'stdout, stderr) Cmd.t -> string list return
 
   (** Same as {!read} but reads stdout and stderr as a single
       stream.  *)
-  val read_joined : ('stdin, stdout, stderr) Cmd.t -> string t
+  val read_joined : ('stdin, stdout, stderr) Cmd.t -> string return
 
   (** Same as {!lines} but reads stdout and stderr as a single
       stream.  *)
-  val lines_joined : ('stdin, stdout, stderr) Cmd.t -> string list t
+  val lines_joined : ('stdin, stdout, stderr) Cmd.t -> string list return
 
   (** Same as {!read_joined} but reads stdout and stderr as a separate
       strings streams, returning a pair of strings wrapped in the
@@ -228,7 +236,7 @@ module type S = sig
   val read_both :
     ?sleep:float ->
     ('stdin, stdout, stderr) Cmd.t ->
-    (string * string) t
+    (string * string) return
 
   (** Same as {!lines_joined} but reads stdout and stderr as a separate
       strings streams, returning a pair of string lists wrapped in the
@@ -239,7 +247,7 @@ module type S = sig
   val lines_both :
     ?sleep:float ->
     ('stdin, stdout, stderr) Cmd.t ->
-    (string list * string list) t
+    (string list * string list) return
 
   (** Execute the command. Do a left fold over the lines of output
       from the processe's stdout. Wraps the accumulated output in the
@@ -247,20 +255,20 @@ module type S = sig
   val fold : ('stdin, stdout, 'stderr) Cmd.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
-    'acc t
+    'acc return
 
   (** Same as {!fold}, but fold over lines from stderr. *)
   val fold_err : ('stdin, 'stdout, stderr) Cmd.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
-    'acc t
+    'acc return
 
   (** Same as {!fold}, but joins stdout and stderr into a single
       stream.  *)
   val fold_joined : ('stdin, stdout, stderr) Cmd.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
-    'acc t
+    'acc return
 
   (** Same as {!fold_joined}, but wraps each line of stdin in [Ok]
       and lines of stderr in [Error] so they can be
@@ -272,7 +280,7 @@ module type S = sig
     ('stdin, stdout, stderr) Cmd.t ->
     f:('acc -> (string, string) result -> 'acc) ->
     init:'acc ->
-    'acc t
+    'acc return
 
   (** Execute the command. Feed items from [lines] to the process
       stdin, which will be separated with a newline character by
@@ -288,7 +296,7 @@ module type S = sig
     lines:string Seq.t ->
     f:('acc -> string -> 'acc) ->
     init:'acc ->
-    'acc t
+    'acc return
 end
 
 let run_f _ = ()
@@ -296,7 +304,7 @@ let read_f stream t = In_channel.input_all (stream t)
 let lines_f stream t = In_channel.input_lines (stream t)
 let fold_f stream f init t = In_channel.fold_lines f init (stream t)
 
-let bufsz =  128
+let bufsz =  4096
 
 let read_both_proc ?(sleep=0.) t =
   let buf_out = Bytes.create bufsz
@@ -365,7 +373,7 @@ let fold_with_proc ?(sleep=0.) ?(sep="\n") t ~lines ~f ~init =
       go lines_opt' (f acc line) in
   go (Some lines) init
 
-module Make(M: Exec_t) : S with type 'a t := 'a M.t = struct
+module Make(M: Exec_t) : S with type 'a return := 'a M.return = struct
   include M
   let run cmd = exec cmd ~f:run_f
 

@@ -2,6 +2,8 @@ module Unix = UnixLabels
 open Core
 open StdLabels
 
+module Smap = Map.Make(String)
+
 module Stream = struct
   let get_devnull () =
     Unix.openfile "/dev/null" ~mode:[Unix.O_WRONLY] ~perm:0
@@ -73,8 +75,29 @@ module Stream = struct
       }
 end
 
+let env_join env =
+  let passed = ref @@ Smap.of_list env in
+  Array.append
+    (Array.map (Unix.environment ()) ~f:(fun pair ->
+         match String.index_opt pair '=' with
+         | None -> pair
+         | Some len ->
+           let key = String.sub ~pos:0 ~len pair in
+           match Smap.find_opt key !passed with
+           | None -> pair
+           | Some value ->
+             passed := Smap.remove key !passed;
+             Printf.sprintf "%s=%s" key value))
+    (Smap.to_seq !passed
+     |> Seq.map (fun (k, v) -> Printf.sprintf "%s=%s" k v)
+     |> Array.of_seq)
+
 let _create ~stdout ~stdin ~stderr ~env (prog, args) =
-  Unix.create_process_env ~prog ~env ~args ~stdout ~stdin ~stderr
+  if env = [] then
+    Unix.create_process ~prog ~args ~stdout ~stdin ~stderr
+  else
+    Unix.create_process_env
+      ~prog ~env:(env_join env) ~args ~stdout ~stdin ~stderr
 
 let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
   let in', out, err =
