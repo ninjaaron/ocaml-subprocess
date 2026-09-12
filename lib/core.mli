@@ -53,6 +53,10 @@ module Cmd : sig
       | Devnull : devnull t
       | Pipe : pipe t
     val show : 'a t -> string
+
+    type poly = Out : 'a t -> poly
+
+    val compare: poly -> poly -> int
   end
 
   (** The guts of the Cmd.t in all its glory. You aren't really

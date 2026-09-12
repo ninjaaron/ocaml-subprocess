@@ -66,6 +66,25 @@ module Cmd = struct
       | Append s -> Printf.sprintf {|append "%s"|} (String.escaped s)
       | Devnull -> "/dev/null"
       | Pipe -> "pipe"
+
+    type poly = Out : 'a t -> poly
+
+    let to_int : type a. a t -> int = function
+      | Stdout -> 0
+      | Stderr -> 1
+      | Channel _ -> 2
+      | File _ -> 3
+      | Append _ -> 4
+      | Devnull -> 5
+      | Pipe -> 6
+
+    let compare (Out a) (Out b) =
+      match a, b with
+      | File n1, File n2 | Append n1, Append n2 -> String.compare n1 n2
+      | Channel oc1, Channel oc2 ->
+        let fd1, fd2 = Unix.(descr_of_out_channel oc1, descr_of_out_channel oc2) in
+        Int.compare (Obj.magic fd1) (Obj.magic fd2)
+      | _ -> Int.compare (to_int a) (to_int b)
   end
 
   let arg_to_repr arg =
@@ -238,7 +257,10 @@ let stdin {stdin=In.Pipe oc; _} = oc
 let stdout {stdout=Out.Pipe ic; _} = ic
 let stderr {stderr=Out.Pipe ic; _} = ic
 
-let wait ?(mode = []) t = Unix.waitpid ~mode t.pid
+let rec wait ?(mode = []) t =
+  try Unix.waitpid ~mode t.pid
+  with Unix.Unix_error (Unix.EINTR, _, _) -> wait ~mode t
+
 let poll t =
   match Unix.waitpid ~mode:[ Unix.WNOHANG ] t.pid with
   | 0, _ -> None

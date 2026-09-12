@@ -115,26 +115,30 @@ module Exec = struct
     = fun ?mode -> function
       | Single proc -> proc.close ?mode ()
       | Pipe (proc, t2) ->
-        let e = proc.close ?mode () in
-        match Exit.status_int e with
-        | 0 -> close ?mode t2
-        | _ -> ignore (close ?mode t2); e
+        let inner_e = close ?mode t2 in
+        let Exit e = proc.close ?mode () in
+        match e.status with
+        | WEXITED 0 -> inner_e
+        | _ -> Exit e
 
   let exec tt =
     let rec loop
-      : type o e. in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
-      = fun ic -> function
-        | Single cmd -> Single (Exec.exec @@ Core.channel_in ic cmd)
+      : type o e. Exec.fd_map -> in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
+      = fun recycle ic -> function
+        | Single cmd ->
+          let proc, _ = Exec.exec ~recycle @@ Core.channel_in ic cmd in
+          Single proc
         | Pipe (cmd, t) ->
-          let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
-          Pipe(proc, loop (Core.stdout proc) t) in
+          let proc, rec' = Exec.exec ~recycle @@ Core.channel_in ic @@ Core.pipe_out cmd in
+          Pipe(proc, loop (Option.get rec') (Core.stdout proc) t) in
     match tt with
-    | Cmd.Single cmd -> Single (Exec.exec cmd)
+    | Cmd.Single cmd -> Single (fst (Exec.exec cmd))
     | Pipe (cmd, p2) ->
-      let proc = Exec.exec (Core.pipe_out cmd) in
+      let proc, rec' =
+        Exec.exec ~recycle:Exec.Out_map.empty (Core.pipe_out cmd) in
       let out = Core.stdout proc in
       Unix.(clear_nonblock @@ descr_of_in_channel out);
-      Pipe (proc, loop out p2)
+      Pipe (proc, loop (Option.get rec') out p2)
 
   let in_context tt ~f =
     let t = exec tt in
@@ -150,12 +154,12 @@ module Exec = struct
       = fun ic -> function
         | Single cmd -> Single (Exec.shared_pipe @@ Core.channel_in ic cmd)
         | Pipe (cmd, t) ->
-          let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
+          let proc, _ = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
           Pipe(proc, loop (Core.stdout proc) t) in
     match tt with
     | Cmd.Single cmd -> Single (Exec.shared_pipe cmd)
     | Pipe (cmd, p2) ->
-      let proc = Exec.exec (Core.pipe_out cmd) in
+      let proc, _ = Exec.exec (Core.pipe_out cmd) in
       let out = Core.stdout proc in
       Unix.(clear_nonblock @@ descr_of_in_channel out);
       Pipe (proc, loop out p2)
@@ -309,6 +313,29 @@ module type S = sig
     f:('acc -> string -> 'acc) ->
     init:'acc ->
     'acc return
+
+  (** Same as {!read}, but reads stderr rather than stdout. *)
+  val read_all_err : ('stdin, 'stdout, stderr) Cmd.t -> string return
+
+  (** Same as {!lines}, but reads stderr rather than stdout. *)
+  val lines_all_err : ('stdin, 'stdout, stderr) Cmd.t -> string list return
+  val read_all_both :
+    ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
+    (string * string) return
+  val lines_all_both :
+    ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
+    (string list * string list) return
+  val fold_all_err : ('stdin, 'stdout, stderr) Cmd.t ->
+    f:('acc -> string -> 'acc) ->
+    init:'acc ->
+    'acc return
+  val fold_all_both : ?sleep:float ->
+    ('stdin, stdout, stderr) Cmd.t ->
+    f:('acc -> (string, string) result -> 'acc) ->
+    init:'acc ->
+    'acc return
 end
 
 let run_f _ = ()
@@ -316,7 +343,7 @@ let read_f stream t = In_channel.input_all (stream t)
 let lines_f stream t = In_channel.input_lines (stream t)
 let fold_f stream f init t = In_channel.fold_lines f init (stream t)
 
-let bufsz =  4096
+let bufsz =  256
 
 let read_both_proc ?(sleep=0.) t =
   let buf_out = Bytes.create bufsz
@@ -366,15 +393,21 @@ let fold_both_proc ?(sleep=0.) t ~f ~init =
 let fold_with_proc ?(sleep=0.) ?(sep="\n") t ~lines ~f ~init =
   let write_line line lines =
     match Out_channel.output_string (stdin t) line with
+    | exception Sys_error msg when msg = "Broken pipe" ->
+      Out_channel.close_noerr (stdin t);
+      Seq.empty
     | exception Sys_blocked_io -> Seq.cons line lines
     | () ->
       match Out_channel.output_string (stdin t) sep with
+      | exception Sys_error msg when msg = "Broken pipe" ->
+        Out_channel.close_noerr (stdin t);
+        Seq.empty
       | exception Sys_blocked_io -> Seq.cons "" lines
       | () -> lines in
   let rec go lines_opt acc =
     let lines_opt' = Option.bind lines_opt @@ fun lines ->
       match lines () with
-      | Seq.Nil -> Out_channel.close (stdin t); None
+      | Seq.Nil -> Out_channel.close_noerr (stdin t); None
       | Seq.Cons (line, tl) -> Some (write_line line tl) in
     match In_channel.input_line (stdout t) with
     | exception Sys_blocked_io -> go lines_opt' acc
@@ -385,37 +418,56 @@ let fold_with_proc ?(sleep=0.) ?(sep="\n") t ~lines ~f ~init =
       go lines_opt' (f acc line) in
   go (Some lines) init
 
+let rec _pipe_err : type i o. (i, o, stderr) Cmd.t -> (i, o, pipe) Cmd.t =
+  function
+  | Single cmd -> Single (Core.pipe_err cmd)
+  | Pipe(cmd, tl) -> Pipe(cmd, _pipe_err tl)
+
 module Make(M: Exec_t) : S with type 'a return := 'a M.return = struct
   include M
   let run cmd = exec cmd ~f:run_f
 
   let write cmd ~input =
     exec (pipe_in cmd) ~f:(fun t ->
-        Out_channel.output_string (stdin t) input)
+        try Out_channel.output_string (stdin t) input
+        with Sys_error msg when msg = "Broken pipe" ->
+          Out_channel.close_noerr (stdin t)
+      )
 
   let write_lines cmd ~input =
     exec (pipe_in cmd) ~f:(fun t ->
         set_binary_mode_out (stdin t) false;
-        Seq.iter (fun line ->
-            Out_channel.output_string (stdin t) line;
-            Out_channel.output_char (stdin t) '\n'
-          ) input
+        try
+          Seq.iter (fun line ->
+              Out_channel.output_string (stdin t) line;
+              Out_channel.output_char (stdin t) '\n'
+            ) input
+        with Sys_error msg when msg = "Broken pipe" ->
+          Out_channel.close_noerr (stdin t)
       )
+
   let read cmd = exec (pipe_out cmd) ~f:(read_f stdout)
   let lines cmd = exec (pipe_out cmd) ~f:(lines_f stdout)
-  let read_err cmd = exec (pipe_err cmd) ~f:(read_f stderr)
-  let lines_err cmd = exec (pipe_err cmd) ~f:(lines_f stderr)
+  let read_err cmd = exec (_pipe_err cmd) ~f:(read_f stderr)
+  let lines_err cmd = exec (_pipe_err cmd) ~f:(lines_f stderr)
+  let read_all_err cmd = exec (pipe_err cmd) ~f:(read_f stderr)
+  let lines_all_err cmd = exec (_pipe_err cmd) ~f:(lines_f stderr)
   let read_joined cmd = exec_joined cmd ~f:(read_f stdout)
   let lines_joined cmd = exec_joined cmd ~f:(lines_f stdout)
   let fold cmd ~f ~init =
     exec (pipe_out cmd) ~f:(fold_f stdout f init)
   let fold_err cmd ~f ~init =
+    exec (_pipe_err cmd) ~f:(fold_f stderr f init)
+  let fold_all_err cmd ~f ~init =
     exec (pipe_err cmd) ~f:(fold_f stderr f init)
   let fold_joined cmd ~f ~init =
     exec_joined cmd ~f:(fold_f stdout f init)
 
   let read_both ?sleep cmd =
-    exec ~f:(read_both_proc ?sleep) @@ pipe_out @@ pipe_err cmd
+    exec ~f:(read_both_proc ?sleep) @@ pipe_out @@ _pipe_err cmd
+
+  let read_all_both ?sleep cmd =
+    exec ~f:(read_both_proc ?sleep) @@ pipe_out @@ _pipe_err cmd
 
   let remove_trailing_newline s =
     let len = String.length s in
@@ -428,10 +480,23 @@ module Make(M: Exec_t) : S with type 'a return := 'a M.return = struct
       String.(
         split_on_char ~sep:'\n' (remove_trailing_newline out),
         split_on_char ~sep:'\n' (remove_trailing_newline err)) in
+    let cmd' = pipe_out @@ _pipe_err cmd in
+    exec cmd' ~f
+
+  let lines_all_both ?sleep cmd =
+    let f t =
+      let out, err = read_both_proc ?sleep t in
+      String.(
+        split_on_char ~sep:'\n' (remove_trailing_newline out),
+        split_on_char ~sep:'\n' (remove_trailing_newline err)) in
     let cmd' = pipe_out @@ pipe_err cmd in
     exec cmd' ~f
 
   let fold_both ?sleep cmd ~f ~init =
+    let cmd' = no_block @@ pipe_out @@ _pipe_err cmd in
+    exec cmd' ~f:(fold_both_proc ?sleep ~f ~init)
+
+  let fold_all_both ?sleep cmd ~f ~init =
     let cmd' = no_block @@ pipe_out @@ pipe_err cmd in
     exec cmd' ~f:(fold_both_proc ?sleep ~f ~init)
 
