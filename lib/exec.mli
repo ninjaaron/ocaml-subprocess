@@ -1,5 +1,8 @@
 open Core
 
+module Omap : Map.S with type key = Cmd.Out.poly
+type fd = Unix.file_descr
+
 (** Start a process and return the handle (an instance of
     {!Subprocess.t}). This process will need to be closed manually, but the
     recored carres around a [close] "method" (actually a closure)
@@ -10,6 +13,12 @@ open Core
     instance of {!Exit.t}.
 *)
 val exec : ('stdin, 'stdout, 'stderr) Cmd.t -> ('stdin, 'stdout, 'stderr) t
+
+val exec_in_pipeline
+  : ?reader:in_channel
+  -> fd_map:fd Omap.t
+  -> ('stdin, 'stdout, 'stderr) Cmd.t
+  -> ('stdin, 'stdout, 'stderr) t * in_channel option * fd Omap.t
 
 
 (** Open a command in context of a function, and close automaticall

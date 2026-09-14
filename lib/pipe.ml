@@ -1,5 +1,10 @@
 open Core
 
+module Oset = Set.Make(struct
+    type t = Cmd.Out.poly
+    let compare = Cmd.Out.compare
+  end)
+
 module Cmd = struct
   type (_, _, _) t =
     | Single : ('i, 'o, 'e) Cmd.t -> ('i, 'o, 'e) t
@@ -23,18 +28,44 @@ module Cmd = struct
           loop t in
       loop t
 
+  let file_write_error fn =
+    raise @@ Subprocess_error (
+      Printf.sprintf
+        "the pipeline tried to open file %S both for truncation and appending"
+        fn
+    )
+
+  let check_one : type o. Oset.t ->  o Core.Cmd.Out.t -> Oset.t =
+    fun seen -> function
+      | Append fn when Oset.mem (Out (File fn)) seen -> file_write_error fn
+      | File fn when Oset.mem (Out (Append fn)) seen -> file_write_error fn
+      | Append _ as out_t -> Oset.add (Out out_t) seen
+      | File _  as out_t -> Oset.add (Out out_t) seen
+      | _ -> seen
+
+  let check_redirects cmd =
+    let rec loop : type i o e. Oset.t -> (i, o, e) t -> unit =
+      fun seen -> function
+        | Single {stdout; stderr; _} ->
+          let seen' = check_one seen stdout in
+          let _ = check_one seen' stderr in
+          ()
+        | Pipe ({stderr; _}, tl) ->
+          let seen' = check_one seen stderr in
+          loop seen' tl in
+    loop Oset.empty cmd
+
+  let [@tail_mod_cons] rec append
+    : type i o e. (i, stdout, _) t -> (stdin, o, e) t -> (i, o, e) t =
+    fun t1 t2 ->
+    match t1 with
+    | Single cmd -> Pipe (cmd, t2)
+    | Pipe (cmd, tl) -> Pipe(cmd, append tl t2)
 end
 
 let cmd ?prog ?env ?block args = Cmd.Single (Core.cmd ?prog ?env ?block args)
 
-let [@tail_mod_cons] rec append
-  : type i o e. (i, stdout, _) Cmd.t -> (stdin, o, e) Cmd.t -> (i, o, e) Cmd.t =
-  fun t1 t2 ->
-  match t1 with
-  | Single cmd -> Pipe (cmd, t2)
-  | Pipe (cmd, tl) -> Pipe(cmd, append tl t2)
-
-let (@|) = append
+let (@|) = Cmd.append
 
 let set_in
   : type o e. 'i Core.Cmd.In.t  -> (stdin, o, e) Cmd.t -> ('i, o, e) Cmd.t =
@@ -71,6 +102,7 @@ let append_err s t = set_err (Append s) t
 let devnull_out t = set_out Devnull t
 let devnull_err t = set_err Devnull t
 
+(* this needs fixing. environents should be joined *)
 let rec env
   : type i o e. (string * string) list -> (i, o, e) Cmd.t -> (i, o, e) Cmd.t
   = fun env_list -> function
@@ -123,22 +155,22 @@ module Exec = struct
 
   let exec tt =
     let rec loop
-      : type o e. Exec.fd_map -> in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
-      = fun recycle ic -> function
+      : type o e. in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
+      = fun ic -> function
         | Single cmd ->
-          let proc, _ = Exec.exec ~recycle @@ Core.channel_in ic cmd in
+          let proc = Exec.exec @@ Core.channel_in ic cmd in
           Single proc
         | Pipe (cmd, t) ->
-          let proc, rec' = Exec.exec ~recycle @@ Core.channel_in ic @@ Core.pipe_out cmd in
-          Pipe(proc, loop (Option.get rec') (Core.stdout proc) t) in
+          let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
+          Pipe(proc, loop (Core.stdout proc) t) in
+    Cmd.check_redirects tt;
     match tt with
-    | Cmd.Single cmd -> Single (fst (Exec.exec cmd))
+    | Cmd.Single cmd -> Single (Exec.exec cmd)
     | Pipe (cmd, p2) ->
-      let proc, rec' =
-        Exec.exec ~recycle:Exec.Out_map.empty (Core.pipe_out cmd) in
+      let proc = Exec.exec (Core.pipe_out cmd) in
       let out = Core.stdout proc in
       Unix.(clear_nonblock @@ descr_of_in_channel out);
-      Pipe (proc, loop (Option.get rec') out p2)
+      Pipe (proc, loop out p2)
 
   let in_context tt ~f =
     let t = exec tt in
@@ -154,12 +186,12 @@ module Exec = struct
       = fun ic -> function
         | Single cmd -> Single (Exec.shared_pipe @@ Core.channel_in ic cmd)
         | Pipe (cmd, t) ->
-          let proc, _ = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
+          let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
           Pipe(proc, loop (Core.stdout proc) t) in
     match tt with
     | Cmd.Single cmd -> Single (Exec.shared_pipe cmd)
     | Pipe (cmd, p2) ->
-      let proc, _ = Exec.exec (Core.pipe_out cmd) in
+      let proc = Exec.exec (Core.pipe_out cmd) in
       let out = Core.stdout proc in
       Unix.(clear_nonblock @@ descr_of_in_channel out);
       Pipe (proc, loop out p2)
@@ -171,7 +203,6 @@ module Exec = struct
     | exception e ->
       let _ = close t in
       raise e
-
 end
 
 module Unix = UnixLabels

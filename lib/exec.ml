@@ -3,6 +3,12 @@ open Core
 open StdLabels
 
 module Smap = Map.Make(String)
+module Omap = Map.Make(struct
+    type t = Cmd.Out.poly
+    let compare = Cmd.Out.compare
+  end)
+
+type fd = Unix.file_descr
 
 module Stream = struct
   let get_devnull () =
@@ -52,6 +58,55 @@ module Stream = struct
       ; cl = Some w
       ; closer = fun () -> In_channel.close_noerr ic
       }
+
+  let prep_out_pipeline
+    : type a. ?reader:in_channel
+      -> fd_map:fd Omap.t
+      -> block:bool
+      -> is_stdout:bool
+      -> a Cmd.Out.t
+      -> a Out.t bookkeeping * in_channel option * fd Omap.t
+    = fun ?reader ~fd_map ~block ~is_stdout out_t ->
+      let prep = prep_fd_no_close in
+      let out_poly = Cmd.Out.Out out_t in
+      let add fd = Omap.add out_poly fd fd_map in
+      match out_t, Omap.find_opt out_poly fd_map, reader with
+      | Stdout, _, _ -> prep Unix.stdout Out.Stdout, reader, fd_map
+      | Stderr, _, _ -> prep Unix.stderr Out.Stderr, reader, fd_map
+      | Channel oc, _, _ ->
+        prep (Unix.descr_of_out_channel oc) Out.Channel, reader, fd_map
+      (* now all the types were the fd needs to be managed *)
+      | Devnull, Some fd, _ -> prep_fd_no_close fd Out.Devnull, reader, fd_map
+      | Devnull, None, _ -> let fd = get_devnull () in
+        prep fd Out.Devnull, reader, add fd
+      | File s, Some fd, _ -> prep fd (Out.File s), reader, fd_map
+      | File s, None, _ ->
+        let fd = Unix.(openfile s ~mode:[O_WRONLY; O_CREAT] ~perm:0o640) in
+        prep fd (Out.File s), reader, add fd
+      | Append s, Some fd, _ -> prep fd (Out.Append s), reader, fd_map
+      | Append s, None, _ ->
+        let fd = Unix.(openfile s ~mode:[O_APPEND; O_CREAT] ~perm:0o640) in
+        prep fd (Out.Append s), reader, add fd
+      | Pipe, _, _ when is_stdout ->
+        let r, w = Unix.pipe ~cloexec:true () in
+        if not block then Unix.set_nonblock r;
+        let ic = Unix.in_channel_of_descr r in
+        { handle = Out.Pipe ic
+        ; send = w
+        ; cl = Some w
+        ; closer = fun () -> In_channel.close_noerr ic
+        }, reader, fd_map
+      | Pipe, Some send, Some ic ->
+        {handle=Out.Pipe ic; send; cl=None; closer=Fun.id}, reader, fd_map
+      | Pipe, None, None ->
+        let r, send = Unix.pipe ~cloexec:true () in
+        if not block then Unix.set_nonblock r;
+        let ic = Unix.in_channel_of_descr r in
+        ( {handle=Out.Pipe ic; send ; cl=None ; closer=Fun.id}
+        , Some ic
+        , add send
+        )
+      | Pipe, _, _ -> assert false
 
   let prep_in (type a) : block:bool -> a Cmd.In.t -> a In.t bookkeeping =
     fun ~block -> function
@@ -124,6 +179,36 @@ let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
   ; stderr = err.handle
   ; close
   }
+
+let exec_in_pipeline
+    ?reader
+    ~fd_map
+    (Cmd.{args; stdin; stdout; stderr; env; block} as cmd)
+  =
+  let in', (out, _, _), (err, reader', fd_map') =
+    Stream.( prep_in ~block stdin
+           , prep_out_pipeline ~fd_map ~block ~is_stdout:true stdout
+           , prep_out_pipeline ?reader ~fd_map ~block ~is_stdout:false stderr
+           ) in
+  let pid = _create
+      ~stdin:in'.send
+      ~stdout:out.send
+      ~stderr:err.send
+      ~env
+      args in
+  let close ?(mode = []) () =
+    in'.closer ();
+    let pid, status = Unix.waitpid ~mode pid in
+    out.closer (); err.closer ();
+    Exit.(Exit {pid; status; cmd}) in
+  List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
+  { pid
+  ; cmd
+  ; stdin = in'.handle
+  ; stdout = out.handle
+  ; stderr = err.handle
+  ; close
+  }, reader', fd_map'
 
 let in_context cmd ~f =
   let t = exec cmd in
