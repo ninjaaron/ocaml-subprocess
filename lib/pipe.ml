@@ -120,24 +120,24 @@ let no_block t =
 
 module T = struct
   type (_, _, _) t =
-    | Single : ('i, 'o, 'e) Core.t -> ('i, 'o, 'e) t
+    | Single : ('i, 'o, 'e) Core.t * in_channel option * Exec.(fd Omap.t) -> ('i, 'o, 'e) t
     | Pipe : ('i, pipe, _) Core.t * (channel, 'o, 'e) t -> ('i, 'o, 'e) t
 end
 
 include T
 
 let stdin = function
-  | Single proc -> Core.stdin proc
-  | Pipe (t, _) -> stdin t
+  | Single (proc, _, _) -> Core.stdin proc
+  | Pipe (proc, _) -> stdin proc
 
 let rec stdout : type i e. (i, pipe, e) t -> in_channel =
   function
-  | Single proc -> Core.stdout proc
+  | Single (proc, _, _) -> Core.stdout proc
   | Pipe (_, t) -> stdout t
 
 let rec stderr : type i o. (i, o, pipe) t -> in_channel =
   function
-  | Single proc -> Core.stderr proc
+  | Single (proc, _, _) -> Core.stderr proc
   | Pipe (_, t) -> stderr t
 
 module Exec = struct
@@ -145,7 +145,11 @@ module Exec = struct
   let rec close
     : type i o e. ?mode:Unix.wait_flag list -> (i, o, e) t-> Exit.t
     = fun ?mode -> function
-      | Single proc -> proc.close ?mode ()
+      | Single (proc, reader, fd_map)  ->
+        let e = proc.close ?mode () in
+        (ignore @@ Option.map In_channel.close_noerr reader);
+        Exec.Omap.iter (fun _ fd -> Unix.close fd) fd_map;
+        e
       | Pipe (proc, t2) ->
         let inner_e = close ?mode t2 in
         let Exit e = proc.close ?mode () in
@@ -155,22 +159,24 @@ module Exec = struct
 
   let exec tt =
     let rec loop
-      : type o e. in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
-      = fun ic -> function
+      : type o e. in_channel option -> Exec.(fd Omap.t) ->  in_channel -> (stdin, o, e) Cmd.t -> (channel, o, e) t
+      = fun reader fd_map ic -> function
         | Single cmd ->
-          let proc = Exec.exec @@ Core.channel_in ic cmd in
-          Single proc
+          let proc, reader', fd_map' = Exec.exec_in_pipeline ?reader ~fd_map @@ Core.channel_in ic cmd in
+          Single (proc, reader', fd_map')
         | Pipe (cmd, t) ->
-          let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
-          Pipe(proc, loop (Core.stdout proc) t) in
+          let proc, reader', fd_map' =
+            Exec.exec_in_pipeline ?reader ~fd_map @@ Core.channel_in ic @@ Core.pipe_out cmd in
+          Pipe(proc, loop reader' fd_map' (Core.stdout proc) t) in
     Cmd.check_redirects tt;
     match tt with
-    | Cmd.Single cmd -> Single (Exec.exec cmd)
+    | Cmd.Single cmd -> Single (Exec.exec cmd, None, Exec.Omap.empty)
     | Pipe (cmd, p2) ->
-      let proc = Exec.exec (Core.pipe_out cmd) in
+      let proc, reader, fd_map =
+        Exec.exec_in_pipeline ~fd_map:Exec.Omap.empty (Core.pipe_out cmd) in
       let out = Core.stdout proc in
       Unix.(clear_nonblock @@ descr_of_in_channel out);
-      Pipe (proc, loop out p2)
+      Pipe (proc, loop reader fd_map out p2)
 
   let in_context tt ~f =
     let t = exec tt in
@@ -184,12 +190,12 @@ module Exec = struct
     let rec loop
       : in_channel -> (stdin, stdout, stderr) Cmd.t -> (channel, pipe, stdout) t
       = fun ic -> function
-        | Single cmd -> Single (Exec.shared_pipe @@ Core.channel_in ic cmd)
+        | Single cmd -> Single (Exec.shared_pipe @@ Core.channel_in ic cmd, None, Exec.Omap.empty)
         | Pipe (cmd, t) ->
           let proc = Exec.exec @@ Core.channel_in ic @@ Core.pipe_out cmd in
           Pipe(proc, loop (Core.stdout proc) t) in
     match tt with
-    | Cmd.Single cmd -> Single (Exec.shared_pipe cmd)
+    | Cmd.Single cmd -> Single (Exec.shared_pipe cmd, None, Exec.Omap.empty)
     | Pipe (cmd, p2) ->
       let proc = Exec.exec (Core.pipe_out cmd) in
       let out = Core.stdout proc in

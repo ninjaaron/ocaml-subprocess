@@ -154,6 +154,10 @@ let _create ~stdout ~stdin ~stderr ~env (prog, args) =
     Unix.create_process_env
       ~prog ~env:(env_join env) ~args ~stdout ~stdin ~stderr
 
+let rec waitpid ~mode pid =
+  try Unix.waitpid ~mode pid
+  with Unix.Unix_error (Unix.EINTR, _, _) -> waitpid ~mode pid
+
 let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
   let in', out, err =
     Stream.( prep_in ~block stdin
@@ -168,7 +172,7 @@ let exec (Cmd.{args; stdin; stdout; stderr; env; block} as cmd) =
       args in
   let close ?(mode = []) () =
     in'.closer ();
-    let pid, status = Unix.waitpid ~mode pid in
+    let pid, status = waitpid ~mode pid in
     out.closer (); err.closer ();
     Exit.(Exit {pid; status; cmd}) in
   List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
@@ -198,8 +202,8 @@ let exec_in_pipeline
       args in
   let close ?(mode = []) () =
     in'.closer ();
-    let pid, status = Unix.waitpid ~mode pid in
-    out.closer (); err.closer ();
+    let pid, status = waitpid ~mode pid in
+    out.closer ();
     Exit.(Exit {pid; status; cmd}) in
   List.iter ~f:(Option.iter Unix.close) [ in'.cl; out.cl; err.cl ];
   { pid
